@@ -8,14 +8,16 @@ selector (``raus2024_pp.py``) are byte-for-byte copies of the published
 """
 from __future__ import annotations
 
-import math
 import numpy as np
 
 from . import geometry as G
 from . import physics_mu2 as W
 from . import raus2024_pp as R
 from .factors import factors_one_window
-from .gsvd_backend import _load_dggsvd3
+from inverse_common.gsvd import lapacke_info as _common_lapacke_info
+from inverse_common.numerics import borel_grid as _common_borel_grid
+from inverse_common.reconstruction import reconstruct_alpha_family
+from inverse_common.validation import positive_scalar, validate_window
 
 # Accepted P-P pole content (select_mu2.py / thin_full_alpha.py).
 MASSES = {"1pole": (2.9841,), "2pole": (2.9841, 3.6378)}
@@ -30,20 +32,11 @@ DS_PRODUCTION = 0.01
 
 def lapacke_info():
     """Probe installed libraries, without installing anything."""
-    loaded = _load_dggsvd3()
-    return {"available": loaded is not None, "library": loaded[1] if loaded else None}
+    return _common_lapacke_info()
 
 
 def _positive(value, name):
-    if isinstance(value, (bool, str, bytes)) or np.ndim(value) != 0:
-        raise ValueError(f"{name} must be a finite positive scalar")
-    try:
-        value = float(value)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise ValueError(f"{name} must be a finite positive scalar") from exc
-    if not math.isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be a finite positive scalar")
-    return value
+    return positive_scalar(value, name)
 
 
 def borel_grid(lo, hi):
@@ -52,24 +45,7 @@ def borel_grid(lo, hi):
     On 1.5 + .01*k use that expression for interior points. Else start at lo.
     A last partial step is allowed. A near-endpoint sample is replaced, not doubled.
     """
-    step = G.M2STEP
-    index = round((lo - 1.5) / step)
-    anchor = 1.5 + step * index
-    tol = 8 * np.finfo(float).eps * max(1., abs(lo), abs(hi))
-    n = int(np.floor((hi - lo) / step))
-    if abs(anchor - lo) <= tol:
-        grid = 1.5 + step * (index + np.arange(n + 1))
-    else:
-        grid = lo + step * np.arange(n + 1)
-    grid[0] = lo
-    grid = grid[grid < hi]
-    if len(grid) > 1 and hi - grid[-1] <= tol:
-        grid[-1] = hi
-    else:
-        grid = np.r_[grid, hi]
-    if not np.all(np.diff(grid) > 0):
-        raise ValueError("Borel grid cannot be represented with strictly increasing float64 values")
-    return grid
+    return _common_borel_grid(lo, hi, step=G.M2STEP)
 
 
 def _pp_f(residues, masses):
@@ -92,25 +68,10 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
     ds is the spectral hat step; pass DS_PRODUCTION = 0.01 to reproduce the
     accepted production chain, whose s grid is physics_mu2.sgrid_pp.
     """
-    lo = _positive(M2_min, "M2_min")
-    hi = _positive(M2_max, "M2_max")
-    lam = _positive(Lambda, "Lambda")
-    if hi <= lo:
-        raise ValueError("M2_max must exceed M2_min")
-    if channel is not None and (not isinstance(channel, str) or channel not in MASSES):
-        raise ValueError("channel must be None, '1pole', or '2pole'")
-    channels = tuple(MASSES) if channel is None else (channel,)
-    if lam <= W.S_H or any(lam <= m * m for c in channels for m in MASSES[c]):
-        raise ValueError("Lambda must exceed S_H and all included pole masses squared")
-    s_hat = G.sgrid_hats(lam, step=ds)
+    lo, hi, lam, ds, channels, t, s_hat = validate_window(
+        M2_min, M2_max, Lambda, masses=MASSES, channel=channel,
+        s_h=W.S_H, ds=ds, dm2=G.M2STEP)
     n_hats = len(s_hat)
-    if n_hats < 3:
-        raise ValueError("need at least 3 hat nodes")
-    t = borel_grid(lo, hi)
-    for c in channels:
-        free = n_hats - 2 + len(MASSES[c])
-        if len(t) < free:
-            raise ValueError(f"{c} needs at least {free} Borel points (free unknowns); got {len(t)}")
     info = lapacke_info()
     if not info["available"]:
         raise RuntimeError("LAPACKE_dggsvd3 unavailable. Point JPSI_LAPACKE_LIBRARY to an existing LP64 LAPACKE library; ETA_C_LAPACKE_LIBRARY is accepted as a legacy alias; no numerical fallback is used.")
@@ -129,20 +90,10 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
         poles = np.column_stack([np.exp(-m * m / t) / t for m in masses])
         K = np.column_stack((poles, hat_kernel))
         fac = factors_one_window(K, g, t, H, p, boundary, "lapacke")
-        sig = fac["sigma"]; mu = fac["mu"]; n = len(sig)
-        den = sig[:, None] ** 2 + alpha[None, :]
-        coef = (sig * fac["beta_c"])[:, None] / den
-        dcoef = -(sig * fac["beta_c"])[:, None] / den ** 2
-        un = fac["beta_n"] / fac["sigma_unreg"]
-        shifted = G._dot(fac["X"][:, :n], coef) + G._dot(fac["X"][:, n:], un)[:, None]
-        dshifted = G._dot(fac["X"][:, :n], dcoef)
-        residues = shifted[:p, :]
-        cont = np.vstack([np.full(alpha.size, boundary[0]), shifted[p:, :] - fac["q"][:, None],
-                          np.full(alpha.size, boundary[1])])
-        dcont = dshifted[p:, :] * (np.log(10) * alpha)[None, :]
-        # QOC integrates the continuum on the physical-s grid, as the accepted
-        # recover/thin workers do (iw = trapw(s)[1:-1]), not on the Borel grid.
-        qoc = np.sum(G.trapw(s)[1:-1, None] * dcont ** 2, axis=0)
+        sig = fac["sigma"]; n = len(sig)
+        fac["alpha"] = alpha
+        residues, cont, qoc = reconstruct_alpha_family(
+            fac, boundary, n_poles=p, s_grid=s)
         # Accepted selector: sigma/beta are flat arrays with one contiguous
         # block per window (here a single window), null_sq one entry per window.
         sel = R.select_row(sig, fac["beta_c"], np.array([0, n], dtype=np.int64),
@@ -158,6 +109,7 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
         d_md, psi = R.quantities(sig, fac["beta_c"], fac["null"], alpha)
         if not all(np.all(np.isfinite(v)) for v in (residues, cont, residual)):
             raise RuntimeError(f"{c}: nonfinite reconstructed solution")
+        pen = float(np.sqrt(max(0., float(G._dot(cont[:, k], G._dot(H, cont[:, k]))))))
         results[c] = dict(
             masses=masses, s=s, s_hat=s_hat, boundary=boundary,
             alpha=alpha, residues_all=residues, f_all=f_all, rho_all=cont, qoc=qoc,
@@ -177,7 +129,8 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
             weighted_residual=wr,
             relative_weighted_residual=wr / max(fac["data_norm"], np.finfo(float).tiny),
             unweighted_residual=float(np.linalg.norm(residual)),
-            penalty=float(np.sqrt(max(0., float(G._dot(cont[:, k], G._dot(H, cont[:, k])))))),
+            penalty=pen,
+            objective=wr**2+a*pen**2,
             min_rho=float(np.min(cont[:, k])),
             negative_rho_count=int(np.count_nonzero(cont[:, k] < 0)),
             factors=fac)

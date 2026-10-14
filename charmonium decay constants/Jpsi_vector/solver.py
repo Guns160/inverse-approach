@@ -1,31 +1,23 @@
 """Standalone J/psi n=0 spectral inversion; no cached physics or workspace imports."""
 from __future__ import annotations
 
-import math
 import numpy as np
 from . import physics as P
 from .alpha_grid import selection_grid
 from .factors import factors_one_window
-from .gsvd_backend import _load_dggsvd3
 from . import raus2024 as R
+from inverse_common.gsvd import lapacke_info as _common_lapacke_info
+from inverse_common.numerics import borel_grid as _common_borel_grid
+from inverse_common.validation import positive_scalar, validate_window
 
 
 def lapacke_info():
     """Probe installed libraries, without installing anything."""
-    loaded = _load_dggsvd3()
-    return {"available": loaded is not None, "library": loaded[1] if loaded else None}
+    return _common_lapacke_info()
 
 
 def _positive(value, name):
-    if isinstance(value, (bool, str, bytes)) or np.ndim(value) != 0:
-        raise ValueError(f"{name} must be a finite positive scalar")
-    try:
-        value = float(value)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise ValueError(f"{name} must be a finite positive scalar") from exc
-    if not math.isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be a finite positive scalar")
-    return value
+    return positive_scalar(value, name)
 
 
 def borel_grid(lo, hi):
@@ -34,55 +26,23 @@ def borel_grid(lo, hi):
     On 1.5 + .01*k use that expression for interior points. Else start at lo.
     A last partial step is allowed. A near-endpoint sample is replaced, not doubled.
     """
-    step = P.M2STEP
-    index = round((lo - 1.5) / step)
-    anchor = 1.5 + step * index
-    tol = 8 * np.finfo(float).eps * max(1., abs(lo), abs(hi))
-    n = int(np.floor((hi - lo) / step))
-    if abs(anchor - lo) <= tol:
-        grid = 1.5 + step * (index + np.arange(n + 1))
-    else:
-        grid = lo + step * np.arange(n + 1)
-    grid[0] = lo
-    grid = grid[grid < hi]
-    if len(grid) > 1 and hi - grid[-1] <= tol:
-        grid[-1] = hi
-    else:
-        grid = np.r_[grid, hi]
-    if not np.all(np.diff(grid) > 0):
-        raise ValueError("Borel grid cannot be represented with strictly increasing float64 values")
-    return grid
+    return _common_borel_grid(lo, hi, step=P.M2STEP)
 
 
-def solve(M2_min, M2_max, Lambda, *, channel=None):
+def solve(M2_min, M2_max, Lambda, *, channel=None, ds=P.DS):
     """Return {metadata, M2, weights, OPE, channels}; channel=None means both.
 
     All dimensionful input values are in GeV^2. No files are written.
     channel may be '1delta' or '2delta'. Each channel has independent alpha.
     """
-    lo = _positive(M2_min, "M2_min")
-    hi = _positive(M2_max, "M2_max")
-    lam = _positive(Lambda, "Lambda")
-    if hi <= lo:
-        raise ValueError("M2_max must exceed M2_min")
-    if channel is not None and (not isinstance(channel, str) or channel not in P.MASSES):
-        raise ValueError("channel must be None, '1delta', or '2delta'")
-    channels = tuple(P.MASSES) if channel is None else (channel,)
-    if lam <= P.S_H or any(lam <= m*m for c in channels for m in P.MASSES[c]):
-        raise ValueError("Lambda must exceed S_H and all included pole masses squared")
-    s_hat = P.sgrid_hats(lam)
+    lo, hi, lam, ds, channels, t, s_hat = validate_window(
+        M2_min, M2_max, Lambda, masses=P.MASSES, channel=channel,
+        s_h=P.S_H, ds=ds, dm2=P.M2STEP)
     n_hats = len(s_hat)
-    if n_hats < 3:
-        raise ValueError("need at least 3 hat nodes")
-    t = borel_grid(lo, hi)
-    for c in channels:
-        free = n_hats - 2 + len(P.MASSES[c])
-        if len(t) < free:
-            raise ValueError(f"{c} needs at least {free} Borel points (free unknowns); got {len(t)}")
     info = lapacke_info()
     if not info["available"]:
         raise RuntimeError("LAPACKE_dggsvd3 unavailable. Point JPSI_LAPACKE_LIBRARY to an existing LP64 LAPACKE library; no numerical fallback is used.")
-    s = P.sgrid_fine(lam)
+    s = s_hat
     pert, d4, d6 = P.aa_ope(lam, t, components=True)
     g = pert + d4 + d6
     hat_kernel = P.hats(t, s_hat)
@@ -121,6 +81,7 @@ def solve(M2_min, M2_max, Lambda, *, channel=None):
             raise RuntimeError(f"{c}: nonfinite reconstructed solution")
         results[c] = dict(
             masses=masses, s=s, rho=rho, s_hat=s_hat, hat=cont,
+            alpha=alpha, selection_index=int(sel["index"]),
             residues=residues, f=f, f_jpsi=float(f[0]), boundary=boundary,
             alpha_star=a, alpha_diagnostics=dict(
                 **sel, grid=alpha, d_MD=d_md, psi_Q=psi,
@@ -135,7 +96,8 @@ def solve(M2_min, M2_max, Lambda, *, channel=None):
             residual_factor_discrepancy=abs(d_factor-wr), min_rho=float(np.min(rho)),
             negative_rho_count=int(np.count_nonzero(rho<0)), factors=fac)
     return dict(metadata=dict(schema="jpsi-standalone-v1", M2_min=lo, M2_max=hi,
-                Lambda=lam, n_hats=n_hats, ds=P.DS, dM2=P.M2STEP, mu=P.MU, mc=P.MC,
+                Lambda=lam, n_hats=n_hats, ds=ds, dM2=P.M2STEP, mu=P.MU, mc=P.MC,
                 alpha_s=P.ALPHA_S, G2=P.G2, G3=P.G3, S_H=P.S_H,
+                ope_order="AA n=0 LO*(1+alpha_s/pi)+G2+G3",
                 rule="raus2024_etac_equiv_p0_1", lapacke=info),
                 M2=t, weights=weights, OPE=dict(pert=pert, D4=d4, D6=d6, total=g), channels=results)

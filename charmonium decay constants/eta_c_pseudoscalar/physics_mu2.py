@@ -8,6 +8,7 @@ No noise budget or alpha-selection rule is applied by this worker.
 """
 import numpy as np, math, argparse, hashlib, os, tempfile
 from pathlib import Path
+from inverse_common.numerics import _dot
 
 MC=1.133471090883; G2=0.038; G3=0.013; S_H=14.99
 # Only mc and alpha_s are run; G2/G3 remain fixed inputs, not a claim of G3 scale independence.
@@ -123,8 +124,8 @@ def pp_condensates(m2, mc=MC, x_nodes=4001):
         i2=expo*(term4_g2+term6_g2)
         i3=expo*(b4/(mm**2*x**2*xb**2)+b6/(2*mm**3*x**3*xb**3)+b8/(6*mm**4*x**4*xb**4)
             -(2/15)*a*a*mc**4*(x**5+xb**5)/(mm**5*x**6*xb**6))
-        g2[start:start+len(mm)]=G2*(i2@wx)/(48*np.pi)
-        g3[start:start+len(mm)]=G3*(i3@wx)/(32*(4*np.pi)**2)
+        g2[start:start+len(mm)]=G2*_dot(i2,wx)/(48*np.pi)
+        g3[start:start+len(mm)]=G3*_dot(i3,wx)/(32*(4*np.pi)**2)
     return g2,g3
 def pp_ope(upper,m2):
     threshold=4*MC*MC
@@ -134,8 +135,8 @@ def pp_ope(upper,m2):
     lo=np.empty_like(m2); nlo=np.empty_like(m2)
     for start in range(0,len(m2),256):
         mm=m2[start:start+256]; weight=np.exp(-s[None,:]/mm[:,None])/mm[:,None]
-        lo[start:start+len(mm)]=(weight*rho_lo)@ws
-        nlo[start:start+len(mm)]=(weight*rho_nlo)@ws
+        lo[start:start+len(mm)]=_dot(weight*rho_lo,ws)
+        nlo[start:start+len(mm)]=_dot(weight*rho_nlo,ws)
     g2,g3=pp_condensates(m2)
     return lo+nlo+g2+g3
 

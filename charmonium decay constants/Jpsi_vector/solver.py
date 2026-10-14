@@ -32,10 +32,10 @@ def borel_grid(lo, hi):
 
 def solve(M2_min, M2_max, Lambda, *, channel=None, ds=P.DS,
           mu=2.0, rg_loops=4, rg_inputs=None):
-    """Return {metadata, M2, weights, OPE, channels}; channel=None means both.
+    """Return {metadata, M2, weights, OPE, channels} for the two-pole model.
 
     All dimensionful input values are in GeV^2. No files are written.
-    channel may be '1delta' or '2delta'. Each channel has independent alpha.
+    channel=None or '2pole' selects J/psi + psi(2S).
     mu and rg_inputs are passed to the shared RG derivation on every call;
     no frozen charm mass or coupling is rebound as a default.
     """

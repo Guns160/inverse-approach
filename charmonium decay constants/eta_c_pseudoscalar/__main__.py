@@ -15,7 +15,7 @@ def save_result(result, output_root):
 def main():
     parser = argparse.ArgumentParser(
         description="eta_c pseudoscalar-current (P-P) inversion, mu=2 GeV (GeV^2 inputs)")
-    add_common_arguments(parser, channels=("1pole", "2pole"), ds_default=DS_DEFAULT)
+    add_common_arguments(parser, channels=("2pole",), ds_default=DS_DEFAULT)
     run_and_print(parser, solve, parser.parse_args(), prefix="eta_c_pp")
 
 

@@ -1,5 +1,5 @@
 """Raus MMA2024 abstract p.53 heuristic parameter choice, applied to the
-P-P one-pole/two-pole standard-form SVD factors.
+P-P two-pole standard-form SVD factors.
 
 Selection logic is a verbatim port of the eta_c-standard implementation used
 by the J/psi platform viewer (`raus2024/src/raus2024_etac.py`), so the two

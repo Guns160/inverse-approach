@@ -4,9 +4,9 @@ Three channel packages use common numerical infrastructure and a shared MSbar QC
 
 | Package | Pole model names | Second pole | Residue conversion |
 |---|---|---|---|
-| `Jpsi_vector` | `1delta`, `2delta` | psi(2S) | `f = sqrt(R)` |
-| `eta_c_axial_vector` | `1delta`, `2delta` | chi_c1 | `f = sqrt(R)` |
-| `eta_c_pseudoscalar` | `1pole`, `2pole` | eta_c(2S) | `f = 2*mc(mu)*sqrt(R)/M^2` |
+| `Jpsi_vector` | `2pole` | psi(2S) | `f = sqrt(R)` |
+| `eta_c_axial_vector` | `2pole` | chi_c1 | `f = sqrt(R)` |
+| `eta_c_pseudoscalar` | `2pole` | eta_c(2S) | `f = 2*mc(mu)*sqrt(R)/M^2` |
 
 Nonpositive pole residues produce `NaN` decay constants. Neither pole residues nor the reconstructed continuum are constrained to be positive.
 
@@ -17,20 +17,20 @@ Python 3.9+, NumPy and SciPy are required. Install the Python dependencies from 
 Run from this directory:
 
 ```sh
-python -m Jpsi_vector 5 20 20 --channel 2delta --ds 0.1 --mu 2 --rg-loops 4
-python -m eta_c_axial_vector 5 20 20 --channel 2delta --ds 0.1 --mu 2 --rg-loops 4
-python -m eta_c_pseudoscalar 5 20 20 --channel 2pole --ds 0.1 --mu 2 --rg-loops 4
+python -m Jpsi_vector 5 20 20 --ds 0.1 --mu 2 --rg-loops 4
+python -m eta_c_axial_vector 5 20 20 --ds 0.1 --mu 2 --rg-loops 4
+python -m eta_c_pseudoscalar 5 20 20 --ds 0.1 --mu 2 --rg-loops 4
 ```
 
-The positional arguments are `M2_min`, `M2_max`, and `Lambda`, all in GeV². Omitting `--channel` computes both pole models, selecting alpha independently. These small windows demonstrate execution; they are not recommended physical extraction windows.
+The positional arguments are `M2_min`, `M2_max`, and `Lambda`, all in GeV². Every program computes its double-pole model, identified by `2pole`. These small windows demonstrate execution; they are not recommended physical extraction windows.
 
 ```python
 from Jpsi_vector import solve
 from inverse_common.rg import RGInputs
 
-result = solve(5, 20, 20, channel="2delta", ds=0.1,
+result = solve(5, 20, 20, ds=0.1,
                mu=2.0, rg_loops=4, rg_inputs=RGInputs())
-channel = result["channels"]["2delta"]
+channel = result["channels"]["2pole"]
 print(result["metadata"]["rg"])
 print(channel["f"], channel["alpha_star"])
 ```
@@ -68,6 +68,23 @@ See [RG conventions](docs/RG_CONVENTIONS.md) for formulas, matching direction an
 
 Shared infrastructure lives in `inverse_common/`. The three package directories retain their own physical kernels and pole definitions. Keep the shared directory alongside the packages when copying or installing the code.
 
+## MATLAB
+
+The three MATLAB versions use the shared `matlab/+charmonium` package and MATLAB's built-in `gsvd`. No separate GSVD toolbox is required. From this directory:
+
+```matlab
+addpath("Jpsi_vector/matlab", "eta_c_axial_vector/matlab", ...
+        "eta_c_pseudoscalar/matlab", "matlab");
+rg = charmonium.runDec(2, "Loops", 4);
+j = solve_jpsi_vector(5, 20, 20, "RGLoops", 4);
+a = solve_eta_c_axial_vector(5, 20, 20, "RGLoops", 4);
+p = solve_eta_c_pseudoscalar(5, 20, 20, "RGLoops", 4);
+```
+
+Omitting `Loops` or `RGLoops` selects four loops. Set it to 1, 2, or 3 to change the order. All three MATLAB programs return their double-pole result in `two_pole`, since field names cannot begin with a digit. For example, `p.two_pole.f` holds the two pseudoscalar decay constants. Common scale information is in `p.metadata.rg`.
+
+See [MATLAB instructions](matlab/README.md) for options and validation. `CheckSolution=true` enables the extra augmented least-squares comparison; it is off for normal calculations.
+
 ## Validation
 
 ```sh
@@ -75,3 +92,5 @@ python -B -W error -m unittest discover -s tests -v
 ```
 
 The tests cover RG coefficients and independent quadrature references, parameter propagation, nonzero boundary terms, stationarity, residue conventions, QOC derivatives and serialization. MATLAB parity is an explicit optional test and is documented with the MATLAB implementation.
+
+See [validation record](docs/VALIDATION.md) for the tested environment, test windows and limits of this validation.

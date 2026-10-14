@@ -38,10 +38,12 @@ class RGIntegrationTests(unittest.TestCase):
 
     def test_three_channels_use_the_same_rg_state_for_custom_anchor(self):
         results = [
-            solve_jpsi(*WINDOW, channel="1delta", rg_inputs=CUSTOM_RG),
-            solve_aa(*WINDOW, channel="1delta", rg_inputs=CUSTOM_RG),
-            solve_pp(*WINDOW, channel="1pole", rg_inputs=CUSTOM_RG),
+            solve_jpsi(*WINDOW, channel="2pole", rg_inputs=CUSTOM_RG),
+            solve_aa(*WINDOW, channel="2pole", rg_inputs=CUSTOM_RG),
+            solve_pp(*WINDOW, channel="2pole", rg_inputs=CUSTOM_RG),
         ]
+        for result in results:
+            self.assertEqual(set(result["channels"]), {"2pole"})
         states = [result["metadata"]["rg"] for result in results]
         self.assertEqual(states[0], states[1])
         self.assertEqual(states[0], states[2])
@@ -52,15 +54,15 @@ class RGIntegrationTests(unittest.TestCase):
 
     def test_custom_anchor_does_not_leak_into_later_default_call(self):
         before = derive(mu=2.0, loops=4)
-        custom = solve_pp(*WINDOW, channel="1pole", rg_inputs=CUSTOM_RG)
-        after = solve_pp(*WINDOW, channel="1pole")
+        custom = solve_pp(*WINDOW, channel="2pole", rg_inputs=CUSTOM_RG)
+        after = solve_pp(*WINDOW, channel="2pole")
         self.assertEqual(custom["metadata"]["rg"]["inputs"]["mbar_c"], 1.28)
         self.assertEqual(after["metadata"]["rg"], before)
 
     def test_mu_and_loop_order_change_physical_pp_result(self):
-        base = solve_pp(*WINDOW, channel="1pole")
-        other_scale = solve_pp(*WINDOW, channel="1pole", mu=2.1)
-        one_loop = solve_pp(*WINDOW, channel="1pole", rg_loops=1)
+        base = solve_pp(*WINDOW, channel="2pole")
+        other_scale = solve_pp(*WINDOW, channel="2pole", mu=2.1)
+        one_loop = solve_pp(*WINDOW, channel="2pole", rg_loops=1)
         self.assertEqual(other_scale["metadata"]["mu"], 2.1)
         self.assertNotEqual(base["metadata"]["mc"], other_scale["metadata"]["mc"])
         self.assertNotEqual(base["metadata"]["alpha_s"], other_scale["metadata"]["alpha_s"])
@@ -85,16 +87,16 @@ class RGIntegrationTests(unittest.TestCase):
         self.assertNotEqual(float(boundary_base[0]), float(boundary_changed[0]))
 
     def test_pp_converter_uses_the_same_derived_mass(self):
-        result = solve_pp(*WINDOW, channel="1pole", rg_inputs=CUSTOM_RG)
-        channel = result["channels"]["1pole"]
+        result = solve_pp(*WINDOW, channel="2pole", rg_inputs=CUSTOM_RG)
+        channel = result["channels"]["2pole"]
         mc = result["metadata"]["mc"]
         positive = channel["residues"] > 0
         expected = 2.0 * mc * np.sqrt(channel["residues"][positive]) / channel["masses"][positive] ** 2
         np.testing.assert_allclose(channel["f"][positive], expected, rtol=1e-14)
 
     def test_pp_selector_receives_generalized_singular_values(self):
-        result = solve_pp(*WINDOW, channel="1pole")
-        channel = result["channels"]["1pole"]
+        result = solve_pp(*WINDOW, channel="2pole")
+        channel = result["channels"]["2pole"]
         factors = channel["factors"]
         self.assertEqual(
             channel["alpha_diagnostics"]["sigma_min_sq"],
@@ -110,7 +112,7 @@ class RGIntegrationTests(unittest.TestCase):
 
     def test_common_cli_exposes_running_options(self):
         parser = argparse.ArgumentParser()
-        add_common_arguments(parser, channels=("1pole",), ds_default=0.1)
+        add_common_arguments(parser, channels=("2pole",), ds_default=0.1)
         args = parser.parse_args(["5", "20", "20", "--ds", "0.1", "--mu", "2.1", "--rg-loops", "3"])
         self.assertEqual(args.mu, 2.1)
         self.assertEqual(args.rg_loops, 3)

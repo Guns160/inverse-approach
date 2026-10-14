@@ -20,7 +20,7 @@ from inverse_common.reconstruction import reconstruct_alpha_family
 from inverse_common.validation import positive_scalar, validate_window
 
 # Accepted P-P pole content (select_mu2.py / thin_full_alpha.py).
-MASSES = {"1pole": (2.9841,), "2pole": (2.9841, 3.6378)}
+MASSES = {"2pole": (2.9841, 3.6378)}
 SCHEMA = "eta_c-pp-standalone-v2"
 OPE_LABEL = "PP n=0 LO+NLO(alpha_s)+G2+G3"
 RULE = "raus2024_pp p.53 heuristic"
@@ -62,11 +62,11 @@ def _pp_f(residues, masses, *, mc):
 
 def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT,
           mu=2.0, rg_loops=4, rg_inputs=None):
-    """Return {metadata, M2, weights, OPE, channels}; channel=None means both.
+    """Return {metadata, M2, weights, OPE, channels} for the two-pole model.
 
     All dimensionful input values are in GeV^2.  No files are written.
-    channel may be '1pole' or '2pole'.  Each channel has independent alpha,
-    selected on the accepted logspace(-20, 0, 2001) grid.
+    channel=None or '2pole' selects eta_c + eta_c(2S).
+    Alpha is selected on the accepted logspace(-20, 0, 2001) grid.
     ds is the spectral hat step; pass DS_PRODUCTION = 0.01 to reproduce the
     accepted production chain, whose s grid is physics_mu2.sgrid_pp.
     mu and rg_inputs are passed to the shared RG derivation on every call.

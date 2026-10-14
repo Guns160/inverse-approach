@@ -6,11 +6,12 @@ The programs are in [`charmonium decay constants/`](charmonium%20decay%20constan
 
 | Program | Current | Explicit pole models |
 |---|---|---|
-| `Jpsi_vector` | Vector | J/psi; J/psi + psi(2S) |
-| `eta_c_axial_vector` | Axial vector | eta_c; eta_c + chi_c1 |
-| `eta_c_pseudoscalar` | Pseudoscalar density | eta_c; eta_c + eta_c(2S) |
+| `Jpsi_vector` | Vector | J/psi + psi(2S) |
+| `eta_c_axial_vector` | Axial vector | eta_c + chi_c1 |
+| `eta_c_pseudoscalar` | Pseudoscalar density | eta_c + eta_c(2S) |
 
 The second axial-vector pole is chi_c1, not eta_c(2S). The programs preserve the separate OPE and residue conventions of these three channels.
+All three programs use the model identifier `2pole`.
 
 Numerical outputs depend on the running-coupling prescription, spectral grid, Borel window, pole model and regularization rule. A successful solve by itself does not establish a physical stability window.
 

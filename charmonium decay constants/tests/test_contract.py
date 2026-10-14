@@ -43,10 +43,13 @@ class InverseProblemContract(unittest.TestCase):
                                            factor[positive] * np.sqrt(ch["residues"][positive]),
                                            rtol=2e-14)
                 self.assertTrue(np.isnan(ch["f"][~positive]).all())
-        aa = self.outputs["eta_c_axial_vector"]["channels"]["2delta"]
+        aa = self.outputs["eta_c_axial_vector"]["channels"]["2pole"]
         pp = self.outputs["eta_c_pseudoscalar"]["channels"]["2pole"]
         self.assertEqual(aa["masses"][1], 3.51067)
         self.assertEqual(pp["masses"][1], 3.6378)
+        for out in self.outputs.values():
+            self.assertEqual(set(out["channels"]), {"2pole"})
+            self.assertEqual(len(out["channels"]["2pole"]["masses"]), 2)
 
     def test_back_substitution_and_first_order_condition(self):
         # Reconstruct the linear system independently from returned physical grids.
@@ -94,24 +97,24 @@ class GeneralizedFilterContract(unittest.TestCase):
         rng = np.random.default_rng(2718)
         s = np.array([15., 15.7, 16.9, 18.])
         t = np.linspace(2., 5., 17)
-        K = rng.normal(size=(len(t), 5))
+        K = rng.normal(size=(len(t), 6))
         g = rng.normal(size=len(t))
         H = h_mass_stiffness(s)
         boundary = np.array([0., 0.37])
-        factors = factors_one_window(K, g, t, H, 1, boundary, "lapacke")
+        factors = factors_one_window(K, g, t, H, 2, boundary, "lapacke")
         self.assertGreater(float(np.max(np.abs(factors["mu"] - 1))), 0.05)
         alpha = np.array([0.01, 0.3, 2.])
         factors["alpha"] = alpha
         residues, rho, _ = reconstruct_alpha_family(
-            factors, boundary, n_poles=1, s_grid=s, block_size=2)
+            factors, boundary, n_poles=2, s_grid=s, block_size=2)
         sw = np.sqrt(trapw(t))
-        free, fixed = [0, 2, 3], [1, 4]
+        free, fixed = [0, 1, 3, 4], [2, 5]
         Hii, Hif = H[1:-1, 1:-1], H[1:-1][:, [0, -1]]
         q = np.linalg.solve(Hii, np.dot(Hif, boundary))
         R = np.linalg.cholesky(Hii).T
-        L = np.column_stack((np.zeros(2), R))
+        L = np.column_stack((np.zeros((2, 2)), R))
         A = sw[:, None] * K[:, free]
-        b = sw * (g - np.dot(K[:, fixed], boundary)) + np.dot(A[:, 1:], q)
+        b = sw * (g - np.dot(K[:, fixed], boundary)) + np.dot(A[:, 2:], q)
         for j, a in enumerate(alpha):
             reference = np.linalg.lstsq(
                 np.vstack((A, np.sqrt(a) * L)), np.r_[b, np.zeros(2)], rcond=None)[0]

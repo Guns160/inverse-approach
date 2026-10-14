@@ -46,6 +46,40 @@ class ChannelApiTests(unittest.TestCase):
         for solve in (solve_jpsi, solve_aa, solve_pp):
             self.assertIn("ds", inspect.signature(solve).parameters)
 
+    def test_default_and_explicit_two_pole_models(self):
+        cases = (
+            (solve_jpsi, (3.096900, 3.686097)),
+            (solve_aa, (2.9841, 3.51067)),
+            (solve_pp, (2.9841, 3.6378)),
+        )
+        for solve, masses in cases:
+            with self.subTest(solver=solve.__module__):
+                default = solve(5.0, 20.0, 20.0)
+                explicit = solve(5.0, 20.0, 20.0, channel="2pole")
+                for result in (default, explicit):
+                    self.assertEqual(set(result["channels"]), {"2pole"})
+                    model = result["channels"]["2pole"]
+                    np.testing.assert_array_equal(model["masses"], masses)
+                    self.assertEqual(model["residues"].shape, (2,))
+                    self.assertEqual(model["f"].shape, (2,))
+                for key in ("residues", "rho", "alpha_star"):
+                    np.testing.assert_array_equal(
+                        default["channels"]["2pole"][key],
+                        explicit["channels"]["2pole"][key],
+                    )
+
+    def test_other_counts_and_model_names_are_rejected(self):
+        unsupported = [
+            f"{count}{name}"
+            for count in (1, 2, 3) for name in ("delta", "pole")
+            if (count, name) != (2, "pole")
+        ]
+        for solve in (solve_jpsi, solve_aa, solve_pp):
+            for channel in unsupported:
+                with self.subTest(solver=solve.__module__, channel=channel):
+                    with self.assertRaisesRegex(ValueError, "channel"):
+                        solve(5.0, 20.0, 20.0, channel=channel)
+
 
 @unittest.skipUnless(lapacke_info()["available"], "LP64 LAPACKE_dggsvd3 unavailable")
 class PPReconstructionTests(unittest.TestCase):

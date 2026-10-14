@@ -14,7 +14,7 @@ def save_result(result, output_root):
 
 def main():
     parser = argparse.ArgumentParser(description="J/psi n=0 spectral inversion (GeV^2 inputs)")
-    add_common_arguments(parser, channels=("1delta", "2delta"), ds_default=0.1)
+    add_common_arguments(parser, channels=("2pole",), ds_default=0.1)
     run_and_print(parser, solve, parser.parse_args(), prefix="jpsi", include_peak_covered=True)
 
 

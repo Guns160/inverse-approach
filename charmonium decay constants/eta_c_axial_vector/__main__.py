@@ -15,7 +15,7 @@ def save_result(result, output_root):
 
 def main():
     parser = argparse.ArgumentParser(description="eta_c n=0 spectral inversion (GeV^2 inputs)")
-    add_common_arguments(parser, channels=("1delta", "2delta"), ds_default=P.DS)
+    add_common_arguments(parser, channels=("2pole",), ds_default=P.DS)
     run_and_print(parser, solve, parser.parse_args(), prefix="eta_c", include_peak_covered=True)
 
 

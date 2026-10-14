@@ -1,0 +1,9 @@
+function value = ppFiniteFunction(v)
+%PPFINITEFUNCTION Velocity-dependent part of the P-P NLO spectral density.
+lp=log1p(v)-log1p(-v); lh=log1p(v)-log(2);
+bracket=(pi^2/6+lp.*lh+2*charmonium.li2((1-v)./(1+v))- ...
+    4*charmonium.li2(v)+charmonium.li2(v.^2)+ ...
+    2*charmonium.li2((1+v)/2)-2*charmonium.li2((1-v)/2));
+value=((1+v.^2).*bracket+(19/16-3*v+v.^2/8+3*v.^4/16).*lp+ ...
+    29*v/8-3*v.^2/8+6*v.*lh-4*v.*log(v));
+end

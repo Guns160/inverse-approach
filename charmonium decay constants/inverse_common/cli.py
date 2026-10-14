@@ -67,7 +67,11 @@ def add_common_arguments(parser, *, channels, ds_default):
     parser.add_argument("Lambda", type=float)
     parser.add_argument("--channel", choices=channels, default=None)
     parser.add_argument("--ds", type=float, default=ds_default,
-                        help="spectral hat step in GeV^2; Borel step is channel-frozen")
+                        help="spectral hat step in GeV^2; Borel step is channel-fixed")
+    parser.add_argument("--mu", type=float, default=2.0,
+                        help="RG scale in GeV")
+    parser.add_argument("--rg-loops", type=int, choices=(1, 2, 3, 4), default=4,
+                        help="QCD RG loops used for mc and alpha_s")
     parser.add_argument("--output", type=Path)
 
 
@@ -75,7 +79,8 @@ def run_and_print(parser, solve, args, *, prefix, include_peak_covered=False):
     default_output = Path(__file__).resolve().parents[1] / "results"
     try:
         result = solve(args.M2_min, args.M2_max, args.Lambda,
-                       channel=args.channel, ds=args.ds)
+                       channel=args.channel, ds=args.ds, mu=args.mu,
+                       rg_loops=args.rg_loops)
         summary = save_result(result, args.output or default_output, prefix=prefix,
                               include_peak_covered=include_peak_covered)
     except (ValueError, RuntimeError, FloatingPointError, OSError, np.linalg.LinAlgError) as exc:

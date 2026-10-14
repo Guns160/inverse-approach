@@ -1,10 +1,9 @@
-"""Standalone eta_c pseudoscalar-current (P-P) inversion at mu = 2 GeV.
+"""Standalone eta_c pseudoscalar-current (P-P) spectral inversion.
 
 Same factorisation, endpoint elimination and GSVD path as the A-A package
 (``charmonium/ηc/solver.py``): only the physics input and the alpha rule
-differ.  The frozen P-P OPE (``physics_mu2.py``) and the accepted Raus p.53
-selector (``raus2024_pp.py``) are byte-for-byte copies of the published
-赝标流 program; they are not rederived here.
+differ.  The P-P formulas use inputs derived by the shared RG module, while
+the accepted Raus p.53 selector is retained.
 """
 from __future__ import annotations
 
@@ -16,12 +15,13 @@ from . import raus2024_pp as R
 from .factors import factors_one_window
 from inverse_common.gsvd import lapacke_info as _common_lapacke_info
 from inverse_common.numerics import borel_grid as _common_borel_grid
+from inverse_common.rg import derive
 from inverse_common.reconstruction import reconstruct_alpha_family
 from inverse_common.validation import positive_scalar, validate_window
 
 # Accepted P-P pole content (select_mu2.py / thin_full_alpha.py).
 MASSES = {"1pole": (2.9841,), "2pole": (2.9841, 3.6378)}
-SCHEMA = "eta_c-pp-standalone-v1"
+SCHEMA = "eta_c-pp-standalone-v2"
 OPE_LABEL = "PP n=0 LO+NLO(alpha_s)+G2+G3"
 RULE = "raus2024_pp p.53 heuristic"
 # Spectral hat step: DS_DEFAULT matches the A-A package; DS_PRODUCTION is the
@@ -48,7 +48,7 @@ def borel_grid(lo, hi):
     return _common_borel_grid(lo, hi, step=G.M2STEP)
 
 
-def _pp_f(residues, masses):
+def _pp_f(residues, masses, *, mc):
     """Accepted P-P converter f_i = 2 mc sqrt(R_i) / m_i^2 (GeV).
 
     Non-positive residues give NaN, never an absolute value or a clip.
@@ -56,10 +56,12 @@ def _pp_f(residues, masses):
     residues = np.asarray(residues, float)
     positive = residues > 0
     safe = np.where(positive, residues, 1.0)
-    return np.where(positive, 2.0 * W.MC * np.sqrt(safe) / masses[:, None] ** 2, np.nan)
+    return np.where(
+        positive, 2.0 * float(mc) * np.sqrt(safe) / masses[:, None] ** 2, np.nan)
 
 
-def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
+def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT,
+          mu=2.0, rg_loops=4, rg_inputs=None):
     """Return {metadata, M2, weights, OPE, channels}; channel=None means both.
 
     All dimensionful input values are in GeV^2.  No files are written.
@@ -67,19 +69,27 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
     selected on the accepted logspace(-20, 0, 2001) grid.
     ds is the spectral hat step; pass DS_PRODUCTION = 0.01 to reproduce the
     accepted production chain, whose s grid is physics_mu2.sgrid_pp.
+    mu and rg_inputs are passed to the shared RG derivation on every call.
     """
     lo, hi, lam, ds, channels, t, s_hat = validate_window(
         M2_min, M2_max, Lambda, masses=MASSES, channel=channel,
         s_h=W.S_H, ds=ds, dm2=G.M2STEP)
     n_hats = len(s_hat)
+    rg_state = derive(mu=mu, loops=rg_loops, inputs=rg_inputs)
+    mc = float(rg_state["mc"])
+    alpha_s = float(rg_state["alpha_s"])
     info = lapacke_info()
     if not info["available"]:
         raise RuntimeError("LAPACKE_dggsvd3 unavailable. Point JPSI_LAPACKE_LIBRARY to an existing LP64 LAPACKE library; ETA_C_LAPACKE_LIBRARY is accepted as a legacy alias; no numerical fallback is used.")
     s = s_hat
-    g = W.pp_ope(lam, t)
+    lo_ope, nlo_ope, d4, d6 = W.pp_ope(
+        lam, t, mc=mc, alpha_s=alpha_s, components=True)
+    pert = lo_ope + nlo_ope
+    g = pert + d4 + d6
     hat_kernel = G.hats(t, s_hat)
     H = G.h_mass_stiffness(s_hat)
-    boundary = np.array([0., float(W.pp_rho_pert(np.array([lam]))[0])])
+    boundary = np.array(
+        [0., float(W.pp_rho_pert(np.array([lam]), mc=mc, alpha_s=alpha_s)[0])])
     weights = G.trapw(t)
     if not all(np.all(np.isfinite(a)) for a in (g, hat_kernel, H)):
         raise RuntimeError("Nonfinite physical operator/OPE for this window")
@@ -90,13 +100,13 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
         poles = np.column_stack([np.exp(-m * m / t) / t for m in masses])
         K = np.column_stack((poles, hat_kernel))
         fac = factors_one_window(K, g, t, H, p, boundary, "lapacke")
-        sig = fac["sigma"]; n = len(sig)
+        sig_tilde = fac["sigma_tilde"]; n = len(sig_tilde)
         fac["alpha"] = alpha
         residues, cont, qoc = reconstruct_alpha_family(
             fac, boundary, n_poles=p, s_grid=s)
-        # Accepted selector: sigma/beta are flat arrays with one contiguous
-        # block per window (here a single window), null_sq one entry per window.
-        sel = R.select_row(sig, fac["beta_c"], np.array([0, n], dtype=np.int64),
+        # The selector uses generalized singular values sigma/mu.  Its row API
+        # takes one contiguous block per window; this solve has one window.
+        sel = R.select_row(sig_tilde, fac["beta_c"], np.array([0, n], dtype=np.int64),
                            np.array([fac["null"]], float), alpha, qoc[None, :])
         if sel["status"][0] != "defined":
             raise RuntimeError(f"{c}: alpha selection {sel['status'][0]}")
@@ -105,8 +115,8 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
         backsub = G._dot(K, np.r_[residues[:, k], cont[:, k]])
         residual = backsub - g
         wr = float(np.sqrt(np.sum(weights * residual * residual)))
-        f_all = _pp_f(residues, masses)
-        d_md, psi = R.quantities(sig, fac["beta_c"], fac["null"], alpha)
+        f_all = _pp_f(residues, masses, mc=mc)
+        d_md, psi = R.quantities(sig_tilde, fac["beta_c"], fac["null"], alpha)
         if not all(np.all(np.isfinite(v)) for v in (residues, cont, residual)):
             raise RuntimeError(f"{c}: nonfinite reconstructed solution")
         pen = float(np.sqrt(max(0., float(G._dot(cont[:, k], G._dot(H, cont[:, k]))))))
@@ -124,7 +134,8 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
                 qoc_argmin_index=int(sel["qoc_argmin_index"][0]),
                 on_boundary=bool(k in (0, alpha.size - 1)),
                 grid=alpha, d_MD=d_md, psi_Q=psi,
-                psi_HR=d_md / np.sqrt(alpha), sigma_min_sq=float(np.min(sig) ** 2)),
+                psi_HR=d_md / np.sqrt(alpha),
+                sigma_min_sq=float(np.min(sig_tilde) ** 2)),
             backsub=backsub, residual=residual,
             weighted_residual=wr,
             relative_weighted_residual=wr / max(fac["data_norm"], np.finfo(float).tiny),
@@ -136,7 +147,10 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=DS_DEFAULT):
             factors=fac)
     return dict(metadata=dict(schema=SCHEMA, M2_min=lo, M2_max=hi,
                 Lambda=lam, n_hats=n_hats, ds=float(ds), dM2=G.M2STEP,
-                mu=2.0, mc=W.MC, alpha_s=W.ALPHA_S,
+                mu=float(rg_state["mu"]), mc=mc, alpha_s=alpha_s, rg=rg_state,
                 ope_order=OPE_LABEL, G2=W.G2, G3=W.G3, S_H=W.S_H,
                 rule=RULE, lapacke=info),
-                M2=t, weights=weights, OPE=dict(total=g), channels=results)
+                M2=t, weights=weights,
+                OPE=dict(LO=lo_ope, NLO=nlo_ope, pert=pert, D4=d4, D6=d6,
+                         total=g),
+                channels=results)

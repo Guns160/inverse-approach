@@ -8,6 +8,7 @@ from .factors import factors_one_window
 from . import raus2024 as R
 from inverse_common.gsvd import lapacke_info as _common_lapacke_info
 from inverse_common.numerics import borel_grid as _common_borel_grid
+from inverse_common.rg import derive
 from inverse_common.validation import positive_scalar, validate_window
 
 
@@ -29,25 +30,33 @@ def borel_grid(lo, hi):
     return _common_borel_grid(lo, hi, step=P.M2STEP)
 
 
-def solve(M2_min, M2_max, Lambda, *, channel=None, ds=P.DS):
+def solve(M2_min, M2_max, Lambda, *, channel=None, ds=P.DS,
+          mu=2.0, rg_loops=4, rg_inputs=None):
     """Return {metadata, M2, weights, OPE, channels}; channel=None means both.
 
     All dimensionful input values are in GeV^2. No files are written.
     channel may be '1delta' or '2delta'. Each channel has independent alpha.
+    mu and rg_inputs are passed to the shared RG derivation on every call;
+    no frozen charm mass or coupling is rebound as a default.
     """
     lo, hi, lam, ds, channels, t, s_hat = validate_window(
         M2_min, M2_max, Lambda, masses=P.MASSES, channel=channel,
         s_h=P.S_H, ds=ds, dm2=P.M2STEP)
     n_hats = len(s_hat)
+    rg_state = derive(mu=mu, loops=rg_loops, inputs=rg_inputs)
+    mc = float(rg_state["mc"])
+    alpha_s = float(rg_state["alpha_s"])
     info = lapacke_info()
     if not info["available"]:
         raise RuntimeError("LAPACKE_dggsvd3 unavailable. Point JPSI_LAPACKE_LIBRARY to an existing LP64 LAPACKE library; no numerical fallback is used.")
     s = s_hat
-    pert, d4, d6 = P.aa_ope(lam, t, components=True)
+    pert, d4, d6 = P.aa_ope(
+        lam, t, mc=mc, alpha_s=alpha_s, components=True)
     g = pert + d4 + d6
     hat_kernel = P.hats(t, s_hat)
     H = P.h_mass_stiffness(s_hat)
-    boundary = np.array([0., float(P.aa_rho_pert(np.array([lam]))[0])])
+    boundary = np.array(
+        [0., float(P.aa_rho_pert(np.array([lam]), mc=mc, alpha_s=alpha_s)[0])])
     weights = P.trapw(t)
     if not all(np.all(np.isfinite(a)) for a in (g, hat_kernel, H)):
         raise RuntimeError("Nonfinite physical operator/OPE for this window")
@@ -61,8 +70,8 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=P.DS):
         sel = R.select(fac["sigma_tilde"], fac["beta_c"], fac["null"], alpha)
         if sel["status"] != "defined":
             raise RuntimeError(f"{c}: alpha selection {sel['status']}")
-        a = sel["alpha"]; sig = fac["sigma"]; mu = fac["mu"]; n = len(sig)
-        coef = sig*fac["beta_c"]/(sig*sig+a*mu*mu)
+        a = sel["alpha"]; sig = fac["sigma"]; gsvd_mu = fac["mu"]; n = len(sig)
+        coef = sig*fac["beta_c"]/(sig*sig+a*gsvd_mu*gsvd_mu)
         un = fac["beta_n"]/fac["sigma_unreg"]
         shifted = P._dot(fac["X"][:, :n], coef) + P._dot(fac["X"][:, n:], un)
         residues = shifted[:p]
@@ -95,9 +104,10 @@ def solve(M2_min, M2_max, Lambda, *, channel=None, ds=P.DS):
             objective=wr**2+a*pen**2, residual_factor=d_factor,
             residual_factor_discrepancy=abs(d_factor-wr), min_rho=float(np.min(rho)),
             negative_rho_count=int(np.count_nonzero(rho<0)), factors=fac)
-    return dict(metadata=dict(schema="jpsi-standalone-v1", M2_min=lo, M2_max=hi,
-                Lambda=lam, n_hats=n_hats, ds=ds, dM2=P.M2STEP, mu=P.MU, mc=P.MC,
-                alpha_s=P.ALPHA_S, G2=P.G2, G3=P.G3, S_H=P.S_H,
-                ope_order="AA n=0 LO*(1+alpha_s/pi)+G2+G3",
+    return dict(metadata=dict(schema="jpsi-standalone-v2", M2_min=lo, M2_max=hi,
+                Lambda=lam, n_hats=n_hats, ds=ds, dM2=P.M2STEP,
+                mu=float(rg_state["mu"]), mc=mc, alpha_s=alpha_s,
+                rg=rg_state, G2=P.G2, G3=P.G3, S_H=P.S_H,
+                ope_order="VV n=0 LO*(1+alpha_s/pi)+G2+G3",
                 rule="raus2024_etac_equiv_p0_1", lapacke=info),
                 M2=t, weights=weights, OPE=dict(pert=pert, D4=d4, D6=d6, total=g), channels=results)

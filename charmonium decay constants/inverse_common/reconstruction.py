@@ -10,12 +10,13 @@ def reconstruct_alpha_family(factors, boundary, *, n_poles, s_grid,
                              block_size=128):
     """Reconstruct the alpha family in blocks.
 
-    This retains the accepted P-P convention for the phase-1 regression: raw
-    GSVD sigma, sigma**2 + alpha, and the original X columns. The known
-    generalized-form convention issue is left for a separate physics change.
+    The filter uses the generalized GSVD form with the original X columns:
+    sigma/(sigma**2 + alpha*mu**2).  Derivatives with respect to log10(alpha)
+    include alpha*ln(10) and the required mu**2 factor.
     """
     alpha = np.asarray(factors["alpha"], float)
     sigma = np.asarray(factors["sigma"], float)
+    mu = np.asarray(factors["mu"], float)
     beta = np.asarray(factors["beta_c"], float)
     x_reg = factors["X"][:, : len(sigma)]
     x_unreg = factors["X"][:, len(sigma) :]
@@ -32,13 +33,13 @@ def reconstruct_alpha_family(factors, boundary, *, n_poles, s_grid,
     for start in range(0, alpha.size, block_size):
         stop = min(start + block_size, alpha.size)
         aa = alpha[start:stop]
-        den = sigma[:, None] ** 2 + aa[None, :]
+        den = sigma[:, None] ** 2 + aa[None, :] * mu[:, None] ** 2
         coef = (sigma * beta)[:, None] / den
         shifted = _dot(x_reg, coef)
         shifted += pole_offset[:, None]
         residues[:, start:stop] = shifted[:n_poles]
         rho[1:-1, start:stop] = shifted[n_poles:] - factors["q"][:, None]
-        dcoef = -coef / den
+        dcoef = -coef * mu[:, None] ** 2 / den
         dshifted = _dot(x_reg, dcoef)[n_poles:]
         dshifted *= (np.log(10.0) * aa)[None, :]
         qoc[start:stop] = np.sum(qoc_weights[:, None] * dshifted**2, axis=0)

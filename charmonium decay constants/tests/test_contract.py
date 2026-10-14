@@ -85,5 +85,39 @@ class InverseProblemContract(unittest.TestCase):
                         self.assertNotEqual(arrays[key].dtype, object)
 
 
+class GeneralizedFilterContract(unittest.TestCase):
+    def test_nontrivial_gsvd_mu_and_affine_boundary(self):
+        """A well-conditioned independent least-squares reference catches missing mu²."""
+        from inverse_common.factors import factors_one_window
+        from inverse_common.numerics import trapw, h_mass_stiffness
+        from inverse_common.reconstruction import reconstruct_alpha_family
+        rng = np.random.default_rng(2718)
+        s = np.array([15., 15.7, 16.9, 18.])
+        t = np.linspace(2., 5., 17)
+        K = rng.normal(size=(len(t), 5))
+        g = rng.normal(size=len(t))
+        H = h_mass_stiffness(s)
+        boundary = np.array([0., 0.37])
+        factors = factors_one_window(K, g, t, H, 1, boundary, "lapacke")
+        self.assertGreater(float(np.max(np.abs(factors["mu"] - 1))), 0.05)
+        alpha = np.array([0.01, 0.3, 2.])
+        factors["alpha"] = alpha
+        residues, rho, _ = reconstruct_alpha_family(
+            factors, boundary, n_poles=1, s_grid=s, block_size=2)
+        sw = np.sqrt(trapw(t))
+        free, fixed = [0, 2, 3], [1, 4]
+        Hii, Hif = H[1:-1, 1:-1], H[1:-1][:, [0, -1]]
+        q = np.linalg.solve(Hii, np.dot(Hif, boundary))
+        R = np.linalg.cholesky(Hii).T
+        L = np.column_stack((np.zeros(2), R))
+        A = sw[:, None] * K[:, free]
+        b = sw * (g - np.dot(K[:, fixed], boundary)) + np.dot(A[:, 1:], q)
+        for j, a in enumerate(alpha):
+            reference = np.linalg.lstsq(
+                np.vstack((A, np.sqrt(a) * L)), np.r_[b, np.zeros(2)], rcond=None)[0]
+            actual = np.r_[residues[:, j], rho[1:-1, j] + q]
+            np.testing.assert_allclose(actual, reference, rtol=3e-12, atol=3e-12)
+
+
 if __name__ == "__main__":
     unittest.main()

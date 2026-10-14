@@ -1,0 +1,14 @@
+{
+  "model": {"file": "toy_model.py", "function": "evaluate"},
+  "central": {"Q2": 2.0, "C_example": 1.0, "scale": 1.0},
+  "variables": {
+    "Q2": {"kind": "normal", "sigma": 0.2, "group": "systematic"},
+    "C_example": {"kind": "normal", "sigma": 0.1, "group": "statistical"}
+  },
+  "dependence": {
+    "kind": "normal_covariance",
+    "names": ["Q2", "C_example"],
+    "matrix": [[0.04, 0.01], [0.01, 0.01]]
+  },
+  "provenance": "Synthetic example only. Numbers are chosen to test known algebraic covariance; they are not physical inputs or plateau bounds."
+}

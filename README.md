@@ -22,3 +22,7 @@ Numerical outputs depend on the running-coupling prescription, spectral grid, Bo
 - Later commits separate the common-core refactor, running-scale update and MATLAB implementation.
 
 Historical results and parameter scans are not bundled with the source packages.
+
+## Reusable analysis Skill
+
+[`uncertainty-analysis/SKILL.md`](uncertainty-analysis/SKILL.md) describes a general uncertainty-analysis workflow for AI agents, with a reusable Monte Carlo helper. It supports single-parameter random sampling and joint random sampling, without prescribing the model's kinematic variables, condensates or number of observables. The Skill is stored in this repository and is not installed into a local agent directory.

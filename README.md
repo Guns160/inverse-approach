@@ -34,5 +34,5 @@ Historical results and parameter scans are not bundled with the source packages.
 ### Uncertainty-analysis TODO
 
 - Add an explicit regularization-parameter (`alpha`) ensemble or diagnostic; the current reference workflow keeps `alpha` fixed during both Monte Carlo ensembles.
-- Add running-scale (`mu`) variation; the current reference workflow fixes `mu = 1.0` and does not sample it.
+- Add running-scale (`mu`) variation; the current charmonium workflow fixes `mu = 2.0` and does not sample it.
 - Track further uncertainty-method changes in future pull requests rather than silently changing completed ensembles or reports.

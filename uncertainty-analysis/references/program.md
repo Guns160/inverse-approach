@@ -1,110 +1,102 @@
-# 通用程序接口
+# 分系综程序接口
 
-附带工具是 Skill 的一个参考实现；物理模型不属于抽样器。Python 3.9+ 和 NumPy 1.24+ 即可。脚本可直接按绝对路径运行，不需要安装 Skill 或 Python 包。
+Python 参考程序位于 `scripts/uncertainty/`，只需 Python 3.9+ 与 NumPy 1.24+。不需要安装包；`scripts/run_uncertainty.py` 可按绝对路径运行。模型由 `evaluate(parameters, **options)` 提供，可以封装现有 Python、MATLAB 或命令行求解器。
 
-## 最小模型接口
+## 模型接口
 
 ```python
 def evaluate(parameters, **fixed_options):
-    # 调用已有求解器；必要时重算派生参数。
-    # 参数名、单位和返回值含义由本问题定义。
     result = existing_solver(parameters, **fixed_options)
-    return {"observable": float(result)}
+    return {"observable_name": float(result)}
 ```
 
-支持一个数、一维数值向量或若干具名标量。每次调用的输出名称和维数须一致。通过 `ValueError`、`RuntimeError`、`FloatingPointError` 或 NumPy 线性代数异常报告无法求值的输入；其他编程异常会中止，以免把代码错误混为物理失效点。非有限输出按无效行记录。
+返回值可以是一个数、一维向量或若干具名标量。每次调用的输出名和维数必须一致。模型用 `ValueError`、`RuntimeError`、`FloatingPointError` 或线性代数异常报告物理/数值无效点；适配器编程错误会中止运行，不会混入物理失败率。
 
-模型必须真正消费被采样参数。如果原代码把输入写死在全局常数中，Agent 应先建立局部显式输入接口并验证；不要只修改输出标签。适配器可以调用 MATLAB、现有 CLI 或远程求解服务，但执行权限和任务范围仍按当前用户请求处理。
+## 配置结构
 
-## 配置
+顶层字段：`model`、`central`、`ensembles`、`provenance`、`notes`。`central` 包含所有独立数值输入、固定参数和约束使用的网格量。`ensembles` 只允许 `statistical` 与 `systematic` 两个子对象。
 
-读取 [examples/toy_config.json](../examples/toy_config.json) 和 [examples/toy_model.py](../examples/toy_model.py) 可运行一个三个输出的代数示例。示例中的相关系数和数值没有物理含义。
+每个系综字段：
 
 | 字段 | 含义 |
 |---|---|
-| `model.file` 或 `model.module` | 显式选择可信 Python 适配器；二者只填一个。相对文件路径以配置所在目录为准 |
-| `model.function` | 函数名，默认 `evaluate` |
-| `model.options` | 传给函数的固定关键字选项，例如求解精度、模型选择；不参与撒点 |
-| `central` | 全部独立数值输入的中心值，包括本次保持固定的参数 |
-| `variables` | 本次纳入误差分析的参数分布；名称必须在 `central` 中 |
-| `dependence` | 联合输入分布的相关结构；`joint` 不默认假设独立 |
-| `provenance` / `notes` | 分布来源、平台依据、输入单位、输出单位和其他分析约定 |
+| `variables` | 本系综随机变化的参数及其分布 |
+| `dependence` | 本系综内部联合抽样结构 |
+| `constraints` | 可选物理约束；违反的候选输入被拒绝并重新抽样 |
+| `n_samples` | 接受的输入样本数 |
+| `seed` | 随机种子 |
+| `max_draw_attempts` | 候选输入最大尝试数，默认 200000 |
 
-`variables` 支持这些边缘分布：
+支持分布：
 
 ```json
-{"kind": "normal", "sigma": 0.2, "group": "statistical"}
-{"kind": "uniform", "low": 1.0, "high": 3.0, "group": "systematic"}
-{"kind": "loguniform", "low": 1e-12, "high": 1e-11, "group": "systematic"}
+{"kind": "normal", "sigma": 0.2}
+{"kind": "uniform", "low": 2.0, "high": 4.0}
+{"kind": "loguniform", "low": 1e-12, "high": 1e-10}
 ```
 
-正态均值取 `central` 对应值；均匀和对数均匀用显式上下界。`group` 仅为来源标签，不触发额外采样或误差合成。需要截断分布、经验后验、条件分布、离散选择或曲线平台时，由 Agent 生成联合样本表；不通过裁剪正态样本伪造分布。
+正态均值、均匀中心与对数均匀范围由 `central` 决定。`group`、`unit`、`source` 等只是元数据，不改变抽样。
 
-### 联合相关结构
+### 联合分布
 
-明确独立假设：
+
+独立声明：
 
 ```json
 {"kind": "independent"}
 ```
 
-正态输入的协方差：
+相关正态块加独立剩余参数：
 
 ```json
 {
   "kind": "normal_covariance",
   "names": ["input_a", "input_b"],
-  "matrix": [[0.04, 0.01], [0.01, 0.01]]
+  "matrix": [[0.04, 0.01], [0.01, 0.01]],
+  "independent_remaining": true
 }
 ```
 
-矩阵顺序严格对应 `names`；矩阵是实际输入单位下的协方差，不是相关系数。要求对称、半正定，对角元与各参数 `sigma²` 一致。若存在不在该正态块内的其他抽样变量，需设置 `independent_remaining: true` 明确其与该块及彼此独立；否则拒绝运行。
+`matrix` 是实际输入单位下的协方差，不是相关系数；对角必须等于对应 `sigma²`，矩阵必须对称半正定。块外剩余参数必须显式声明独立，否则拒绝运行。更复杂的联合分布可由上层生成成对样本后调用底层 `generate_draws(..., supplied_draws=...)`；提供的行必须已经满足约束，程序不打乱、不重采样。
 
-对于更一般的联合分布，传入已生成的成对样本 CSV；没有内置边缘分布描述时，可将对应变量写成 `{"kind": "provided"}`。列名与 `variables` 参数名一致，行数与 `--samples` 一致，每行是一组联合输入。`central` 中其他输入保持固定。程序不独立打乱列、不重采样该表；`single` 模式只取指定参数的一列。CSV 的生成方法和关联结构由 Agent 记录在配置中。
+### 约束
 
-使用样本表时，`dependence` 留空、设为 `null`，或明确设为 `{"kind": "provided_paired_rows"}`。不要同时声明另一个生成分布；此时实际联合关系由输入表确定。汇总里的协方差矩阵均带对应的名称顺序，固定列可能有零方差。
+支持四种声明式约束：
 
-## 运行
+```json
+[
+  {"kind": "positive", "names": ["input_a", "input_b"]},
+  {"kind": "less_than_margin", "left": "lower_scale", "right": "upper_scale", "margin_name": "grid_step"},
+  {"kind": "greater_than_margin", "left": "upper_scale", "right": "threshold", "margin_name": "grid_step"},
+  {"kind": "min_difference", "lower": "Y1", "upper": "Y2", "minimum": 0.0}
+]
+```
+
+`less_than_margin` 要求 `left < right - margin_name`；`greater_than_margin` 要求 `left > right + margin_name`。这些约束用于生成物理有效输入。拒绝率记录在 `design.input_rejection_fraction`。求解阶段的失败不走这个拒绝流程，而是保留在 `samples.csv`。
+
+## 命令行
 
 ```sh
 python scripts/run_uncertainty.py --config examples/toy_config.json \
-  --mode single --parameter Q2 --samples 10000 --seed 42 --output results
+  --ensemble statistical --output results
 
 python scripts/run_uncertainty.py --config examples/toy_config.json \
-  --mode joint --samples 10000 --seed 42 --output results
-
-python scripts/run_uncertainty.py --config /path/to/problem.json \
-  --mode joint --samples 10000 --draws /path/to/paired_inputs.csv --output results
+  --ensemble systematic --samples 1000 --seed 15002 --output results
 ```
 
-以上相对路径以 Skill 目录为当前目录。也可将 `scripts/` 加入 Python 模块搜索路径后使用：
-
-```python
-from uncertainty.sampling import run_sampling
-
-result = run_sampling(
-    evaluate, central, variables,
-    mode="single", parameter="arbitrary_input_name", n=1000, seed=42,
-)
-```
-
-程序不自动决定样本数，也不把单参数实验自动加总为联合结果。要查看多项单来源影响，分别运行若干次 `single`；`joint` 单独运行一次完整配置。
-
-## 输出与复核
-
-每次运行创建唯一输出目录：
+`--samples` 和 `--seed` 只覆盖当前运行，不修改配置文件。每次运行创建独立目录，包含：
 
 - `settings.json`：原始配置。
-- `samples.csv`：所有输入样本、配对输出、有效标志和失败原因。
-- `distribution.csv`：用于绘图的直方图分箱，不替代原始样本。
-- `summary.json`：中心点结果、模型文件哈希、种子/采样设计、标准差、分位区间、输出协方差及有效点统计。
+- `samples.csv`：每个接受输入点、配对输出、有效标志和失败原因。
+- `distribution.csv`：输出直方图分箱。
+- `summary.json`：中心值、模型哈希、抽样设计、拒绝率、分布统计、协方差和系综专属报告。
 
-结果的单位由模型/配置决定，抽样器不换算单位。标准差和中央 68.268949% 区间同时保留；解释原则见 [interpretation.md](interpretation.md)。
+统计系综的 `uncertainty_reporting.kind` 是 `statistical_distribution`，每个输出含 `std`、`median`、`q16`、`q84` 及相对中心值的 68% 偏差。系统系综是 `systematic_envelope`，每个输出含包含中心值的最小/最大值和 `envelope_minus` / `envelope_plus`。没有 `total` 字段。
 
-## 检查
+## 测试
 
 ```sh
-python -B -W error -m unittest discover -s tests -v
+python -B -W error -m unittest discover -s uncertainty-analysis/tests -v
 ```
 
-测试包括单参数保持其他输入不变、联合相关结构、任意输出维数、确定性种子、无效点记录及完整 CLI 输出。它们验证抽样工具；具体问题仍需模型自身的物理和数值验证。
+测试覆盖：一个系综运行时另一类参数逐行固定、相关正态块、独立均匀参数、约束拒绝采样、种子可复现、模型失败不补抽、输出 schema 错误与适配器错误不误记为物理失败、CLI 两个系综分别运行、旧的单/联合总误差配置被拒绝。

@@ -1,13 +1,14 @@
-"""Synthetic algebraic example only: no physical OPE or numerical extraction."""
+"""Synthetic algebraic model for exercising the two separated ensembles."""
+
 
 def evaluate(parameters):
-    q2 = parameters["Q2"]
-    condensate = parameters["C_example"]
-    scale = parameters["scale"]
-    if scale <= 0:
-        raise ValueError("scale must be positive")
+    if parameters["scale"] <= 0 or parameters["Y2"] <= parameters["Y1"]:
+        raise ValueError("invalid synthetic model domain")
     return {
-        "sum_response": q2 + condensate,
-        "difference_response": q2 - condensate,
-        "scaled_product": q2 * condensate / scale,
+        "sum_response": (parameters["Q2"] + parameters["condensate"]
+                         + 0.01 * (parameters["Y2"] - parameters["Y1"])
+                         + 0.1 * parameters["X2"]),
+        "window_width": parameters["Y2"] - parameters["Y1"],
+        "scaled_product": (parameters["Q2"] * parameters["condensate"]
+                            * parameters["m0"] / parameters["scale"]),
     }

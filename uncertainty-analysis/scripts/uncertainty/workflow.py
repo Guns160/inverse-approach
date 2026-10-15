@@ -1,9 +1,7 @@
-"""Configurable workflow around a user/agent-provided evaluate(parameters).
+"""Configurable separated statistical/systematic Monte Carlo workflow.
 
-The core has no particle names, condensate definitions, kinematic variables,
-platform-finding rules or fixed number of observables. Model files are ordinary
-Python programs explicitly selected by the caller, not mathematical strings
-passed to eval().
+The model is supplied by the caller. This workflow never combines the two
+ensembles into a total uncertainty.
 """
 from __future__ import annotations
 
@@ -21,10 +19,10 @@ import tempfile
 
 import numpy as np
 
-from .sampling import normalize_output, run_sampling
+from .sampling import ENSEMBLES, normalize_output, run_sampling
 
-CONFIG_KEYS = {"model", "central", "variables", "dependence",
-               "provenance", "notes"}
+CONFIG_KEYS = {"model", "central", "ensembles", "provenance", "notes"}
+ENSEMBLE_KEYS = {"variables", "dependence", "constraints", "n_samples", "seed", "max_draw_attempts"}
 
 
 def _json_safe(value):
@@ -42,7 +40,7 @@ def _json_safe(value):
 
 
 def load_evaluator(model, *, base_directory="."):
-    """Load the explicitly selected local model and bind its fixed options."""
+    """Load an explicitly selected local model and bind its fixed options."""
     if not isinstance(model, dict):
         raise ValueError("model must identify a Python file or importable module and a function")
     allowed = {"file", "module", "function", "options"}
@@ -96,53 +94,106 @@ def load_evaluator(model, *, base_directory="."):
             return callback(dict(parameters), **copy.deepcopy(options))
         finally:
             sys.path[:] = previous_path
-
     return evaluate, provenance
 
 
-def analyze(config, *, mode, n, parameter=None, seed=0, supplied_draws=None,
-            evaluator=None, base_directory="."):
-    """Evaluate one source's marginal draws or all configured joint draws."""
+def _ensemble(config, name):
     if not isinstance(config, dict) or set(config) - CONFIG_KEYS:
-        raise ValueError("configuration must contain model, central, variables, dependence and optional provenance/notes only")
+        raise ValueError("configuration may contain model, central, ensembles, provenance and notes only")
+    groups = config.get("ensembles")
+    if not isinstance(groups, dict) or set(groups) - set(ENSEMBLES):
+        raise ValueError("ensembles must contain only statistical and/or systematic groups")
+    if name not in ENSEMBLES or name not in groups:
+        raise ValueError(f"configuration does not define the {name} ensemble")
+    result = groups[name]
+    if not isinstance(result, dict) or set(result) - ENSEMBLE_KEYS:
+        raise ValueError(f"{name} ensemble contains unknown fields")
+    for required in ("variables", "dependence", "n_samples", "seed"):
+        if required not in result:
+            raise ValueError(f"{name} ensemble is missing {required}")
+    return result
+
+
+def _reporting(ensemble, sampled, central_values):
+    """Attach the reporting convention used by the corresponding ensemble."""
+    summary = sampled["summary"]
+    valid = [row["values"] for row in sampled["samples"] if row["valid"]]
+    kind = "statistical_distribution" if ensemble == "statistical" else "systematic_envelope"
+    if not valid:
+        return {"kind": kind, "outputs": {name: None for name in sampled["output_names"]}}
+    values = np.asarray(valid, float)
+    reporting = {}
+    for j, name in enumerate(sampled["output_names"]):
+        output = summary["outputs"][name]
+        if ensemble == "statistical":
+            reporting[name] = {
+                "std": output["std"], "median": output["median"],
+                "q16": output["q16"], "q84": output["q84"],
+                "q68_minus_from_central": float(central_values[j] - output["q16"]),
+                "q68_plus_from_central": float(output["q84"] - central_values[j]),
+            }
+        else:
+            low = min(float(central_values[j]), output["minimum"])
+            high = max(float(central_values[j]), output["maximum"])
+            reporting[name] = {
+                "minimum_including_central": low,
+                "maximum_including_central": high,
+                "envelope_minus": float(central_values[j] - low),
+                "envelope_plus": float(high - central_values[j]),
+            }
+    return {"kind": kind, "outputs": reporting}
+
+
+def analyze(config, *, ensemble, n=None, seed=None, evaluator=None, base_directory="."):
+    """Run exactly one statistical or systematic ensemble."""
+    if ensemble not in ENSEMBLES:
+        raise ValueError("ensemble must be 'statistical' or 'systematic'")
+    selected = _ensemble(config, ensemble)
     central = config.get("central")
-    variables = config.get("variables")
+    if not isinstance(central, dict):
+        raise ValueError("central must be an object of numeric model inputs")
     if evaluator is None:
         evaluator, model_info = load_evaluator(config.get("model"), base_directory=base_directory)
-    else:
-        if not callable(evaluator):
-            raise ValueError("evaluator must be callable")
+    elif callable(evaluator):
         model_info = {"source": "caller_supplied_callable"}
-    # A bad central point is reported before sampling, not silently replaced.
-    if not isinstance(central, dict):
-        raise ValueError("central must be an object of independent numeric inputs")
+    else:
+        raise ValueError("evaluator must be callable")
     baseline = evaluator(dict(central))
     output_names, baseline_array = normalize_output(baseline)
     if not np.isfinite(baseline_array).all():
-        raise ValueError("the model must return finite scalar/vector/named-scalar results at the central point")
+        raise ValueError("the model must return finite results at the central point")
+    n_samples = selected["n_samples"] if n is None else n
+    selected_seed = selected["seed"] if seed is None else seed
     sampled = run_sampling(
-        evaluator, central, variables, n=n, mode=mode, parameter=parameter,
-        seed=seed, dependence=config.get("dependence"), supplied_draws=supplied_draws,
+        evaluator, central, selected["variables"], n=n_samples, ensemble=ensemble,
+        seed=selected_seed, dependence=selected["dependence"],
+        constraints=selected.get("constraints"),
+        max_draw_attempts=selected.get("max_draw_attempts", 200000),
         output_names=output_names,
     )
     result = dict(sampled)
     result.update({
-        "schema": "general-monte-carlo-v1",
-        "central_parameters": dict(central), "central_result": _json_safe(baseline),
-        "model": model_info, "configuration": config,
-        "interpretation": ("one_input_marginal_random_sampling_others_fixed"
-                           if mode == "single" else "joint_random_sampling_of_all_configured_inputs"),
+        "schema": "separated-ensemble-monte-carlo-v1",
+        "central_parameters": dict(central),
+        "central_result": _json_safe(baseline),
+        "model": model_info,
+        "configuration": config,
+        "interpretation": ("statistical_inputs_random_with_systematic_parameters_fixed"
+                           if ensemble == "statistical" else
+                           "systematic_parameters_random_with_statistical_inputs_fixed"),
+        "combination_policy": "statistical_and_systematic_are_separate; no_total_uncertainty_is_computed",
+        "uncertainty_reporting": _reporting(ensemble, sampled, baseline_array.tolist()),
         "software": {"python": sys.version.split()[0], "numpy": np.__version__},
     })
     return result
 
 
 def save_analysis(result, output_root):
-    """Write raw paired draws, model results, distribution and configuration."""
+    """Write every accepted draw, every model result and one ensemble summary."""
     root = Path(output_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    dest = Path(tempfile.mkdtemp(prefix=f"mc_{result['mode']}_{stamp}_", dir=root))
+    dest = Path(tempfile.mkdtemp(prefix=f"mc_{result['ensemble']}_{stamp}_", dir=root))
     inputs = list(result["central_parameters"])
     outputs = list(result["output_names"])
     with (dest / "samples.csv").open("w", newline="", encoding="utf-8") as stream:
@@ -175,30 +226,17 @@ def save_analysis(result, output_root):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="General single-parameter and joint Monte Carlo uncertainty workflow")
+    parser = argparse.ArgumentParser(description="Separated statistical/systematic Monte Carlo workflow")
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--mode", choices=("single", "joint"), required=True)
-    parser.add_argument("--parameter", help="one input name, required for single mode")
-    parser.add_argument("--samples", type=int, required=True)
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--draws", type=Path, help="CSV with pre-generated paired joint input draws")
+    parser.add_argument("--ensemble", choices=ENSEMBLES, required=True)
+    parser.add_argument("--samples", type=int, help="override the configured n_samples")
+    parser.add_argument("--seed", type=int, help="override the configured seed")
     parser.add_argument("--output", type=Path, default=Path("results") / "uncertainty")
     args = parser.parse_args(argv)
     try:
         config = json.loads(args.config.read_text())
-        supplied = None
-        draw_source = None
-        if args.draws:
-            with args.draws.open(newline="", encoding="utf-8-sig") as stream:
-                reader = csv.DictReader(stream)
-                if reader.fieldnames is None or len(set(reader.fieldnames)) != len(reader.fieldnames):
-                    raise ValueError("draw CSV must have distinct named columns")
-                supplied = [{key: float(value) for key, value in row.items()} for row in reader]
-            draw_source = {"path": str(args.draws.resolve()),
-                           "sha256": hashlib.sha256(args.draws.read_bytes()).hexdigest()}
-        result = analyze(config, mode=args.mode, n=args.samples, parameter=args.parameter,
-                         seed=args.seed, supplied_draws=supplied, base_directory=args.config.parent)
-        result["supplied_draw_source"] = draw_source
+        result = analyze(config, ensemble=args.ensemble, n=args.samples,
+                         seed=args.seed, base_directory=args.config.parent)
         summary = save_analysis(result, args.output)
     except (ValueError, TypeError, KeyError, RuntimeError, OSError, ImportError) as exc:
         parser.exit(2, f"error: {exc}\n")

@@ -1,14 +1,52 @@
 {
   "model": {"file": "toy_model.py", "function": "evaluate"},
-  "central": {"Q2": 2.0, "C_example": 1.0, "scale": 1.0},
-  "variables": {
-    "Q2": {"kind": "normal", "sigma": 0.2, "group": "systematic"},
-    "C_example": {"kind": "normal", "sigma": 0.1, "group": "statistical"}
+  "central": {
+    "Q2": 2.0,
+    "condensate": 1.0,
+    "m0": 0.8,
+    "scale": 1.0,
+    "LambdaBar": 0.55,
+    "Y1": 3.0,
+    "Y2": 15.0,
+    "X2": 2.0,
+    "hx": 0.01
   },
-  "dependence": {
-    "kind": "normal_covariance",
-    "names": ["Q2", "C_example"],
-    "matrix": [[0.04, 0.01], [0.01, 0.01]]
+  "ensembles": {
+    "statistical": {
+      "n_samples": 500,
+      "seed": 15001,
+      "max_draw_attempts": 200000,
+      "variables": {
+        "Q2": {"kind": "normal", "sigma": 0.2, "group": "statistical"},
+        "condensate": {"kind": "normal", "sigma": 0.1, "group": "statistical"},
+        "m0": {"kind": "uniform", "low": 0.6, "high": 1.0, "group": "statistical"}
+      },
+      "dependence": {
+        "kind": "normal_covariance",
+        "names": ["Q2", "condensate"],
+        "matrix": [[0.04, 0.01], [0.01, 0.01]],
+        "independent_remaining": true
+      },
+      "constraints": [
+        {"kind": "positive", "names": ["Q2", "condensate", "m0", "LambdaBar"]},
+        {"kind": "less_than_margin", "left": "LambdaBar", "right": "X2", "margin_name": "hx"}
+      ]
+    },
+    "systematic": {
+      "n_samples": 500,
+      "seed": 15002,
+      "max_draw_attempts": 200000,
+      "variables": {
+        "Y1": {"kind": "uniform", "low": 2.0, "high": 4.0, "group": "systematic"},
+        "Y2": {"kind": "uniform", "low": 10.0, "high": 15.0, "group": "systematic"},
+        "X2": {"kind": "uniform", "low": 2.0, "high": 3.0, "group": "systematic"}
+      },
+      "dependence": {"kind": "independent"},
+      "constraints": [
+        {"kind": "min_difference", "lower": "Y1", "upper": "Y2", "minimum": 0.0},
+        {"kind": "greater_than_margin", "left": "X2", "right": "LambdaBar", "margin_name": "hx"}
+      ]
+    }
   },
-  "provenance": "Synthetic example only. Numbers are chosen to test known algebraic covariance; they are not physical inputs or plateau bounds."
+  "provenance": "Synthetic configuration mirroring the separated-ensemble structure only. Its numbers are not physical errors or validated platform bounds."
 }

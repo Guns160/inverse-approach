@@ -23,6 +23,10 @@ Numerical outputs depend on the running-coupling prescription, spectral grid, Bo
 
 Historical results and parameter scans are not bundled with the source packages.
 
+## Solver improvement example
+
+[`improvement/`](improvement/) contains a minimal self-contained Python + MATLAB example of the solver improvement: one economy-QR + compact GSVD replaces the original per-alpha normal-equation solves, and the whole alpha grid is produced by vectorized generalized filters. The MATLAB example quotes the original per-alpha solve loop it replaces.
+
 ## Reusable analysis Skill
 
-[`uncertainty-analysis/SKILL.md`](uncertainty-analysis/SKILL.md) describes a general uncertainty-analysis workflow for AI agents, with a reusable Monte Carlo helper. It supports single-parameter random sampling and joint random sampling, without prescribing the model's kinematic variables, condensates or number of observables. The Skill is stored in this repository and is not installed into a local agent directory.
+[`uncertainty-analysis/SKILL.md`](uncertainty-analysis/SKILL.md) describes a reusable separated-ensemble uncertainty workflow for AI agents. Statistical inputs and systematic platform/window parameters are sampled in separate Monte Carlo runs and reported separately; the tool does not combine them into a total uncertainty. It does not prescribe the model's kinematic variables, condensates or number of observables. The Skill is stored in this repository and is not installed into a local agent directory.

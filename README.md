@@ -30,3 +30,9 @@ Historical results and parameter scans are not bundled with the source packages.
 ## Reusable analysis Skill
 
 [`uncertainty-analysis/SKILL.md`](uncertainty-analysis/SKILL.md) describes a reusable separated-ensemble uncertainty workflow for AI agents. Statistical inputs and systematic platform/window parameters are sampled in separate Monte Carlo runs and reported separately; the tool does not combine them into a total uncertainty. It does not prescribe the model's kinematic variables, condensates or number of observables. The Skill is stored in this repository and is not installed into a local agent directory.
+
+### Uncertainty-analysis TODO
+
+- Add an explicit regularization-parameter (`alpha`) ensemble or diagnostic; the current reference workflow keeps `alpha` fixed during both Monte Carlo ensembles.
+- Add running-scale (`mu`) variation; the current reference workflow fixes `mu = 1.0` and does not sample it.
+- Track further uncertainty-method changes in future pull requests rather than silently changing completed ensembles or reports.

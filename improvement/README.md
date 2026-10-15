@@ -6,7 +6,7 @@
 
 | | 原方法 | 改进方法（本仓库三套程序共用） |
 |---|---|---|
-| 出处 | 师兄 `Pion_LCDA_test.m`（解方程部分原文引用在 `matlab/gsvd_example.m` 头部注释） | [`../charmonium decay constants/`](../charmonium%20decay%20constants/) 的公共求解核心 |
+| 出处 | 原来的代码（解方程部分原文引用在 `matlab/gsvd_example.m` 头部注释） | [`../charmonium decay constants/`](../charmonium%20decay%20constants/) 的公共求解核心 |
 | 装配 | 正规方程 `A2=A'WA`、`D2=A'Wb`、罚项 `H2` | 保持高矩阵 `A=sqrt(w)*K_free`，罚项行 `B=[0, chol(H_ii)]`，谱端点消去 |
 | 求解 | 每个 alpha 重新组装并完整分解 `(A2+alpha*H2)`（更早版本用 `inv(A2+alpha*H2)*D2`） | **一次** economy-QR + compact GSVD，之后任意 alpha 的解都是标量滤波 |
 | 整条 alpha 网格 | 逐点求解，nAlpha 次完整分解（L-curve / 准最优准则需要对整条网格求解） | 一次分解 + 向量化滤波，`X'\[coef; un]` 一次回代整条网格 |
@@ -31,7 +31,7 @@ $$
 
 ## 为什么快
 
-- 原方法选 alpha 需要对整条网格逐点求解：师兄代码 1000 个点就是 1000 次 O(n^3) 完整分解（原代码每次还同时解 `[D2, e1, en]` 三个右端项）。
+- 原方法选 alpha 需要对整条网格逐点求解：原来的代码 1000 个点就是 1000 次 O(n^3) 完整分解（且每次同时解 `[D2, e1, en]` 三个右端项）。
 - 改进方法只做一次 GSVD；之后每个 alpha 的解是 O(p) 标量滤波，整条网格一次算完。示例规模（n=161、1001 个 alpha）实测滤波部分仅 1.8–3.7 ms，对应旧法逐点求解 103–140 ms。
 
 ## 为什么准

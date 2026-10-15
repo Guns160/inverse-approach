@@ -10,7 +10,7 @@
 % 只需基础 MATLAB；第 5 节的交叉验证需要 Hansen 的 Regularization Tools
 % （cgsvd / fil_fac；未安装时自动跳过）。
 
-%% ---------- 0) 被替换的原始解法（师兄 Pion_LCDA_test.m，解方程部分原文引用） ----------
+%% ---------- 0) 被替换的原始解法（原来的代码，解方程部分原文引用） ----------
 % for i=1:n+mm
 %     for j=1:n+mm
 %        A2(i,j)=trapz(y,Aphi_New(:,i).*Aphi_New(:,j));
@@ -30,7 +30,7 @@
 % FA5(:,k)=inv(A2+alpha2(k)*H2)*(D2-Lag);
 %
 % 本示例把两端谱端点预先消去（正式程序 factorsOneWindow 的做法），因此基线
-% 只需解 D2 一个右端项；师兄原代码同时解 [D2, e1, en]，用两个单位右端项处理
+% 只需解 D2 一个右端项；原来的代码同时解 [D2, e1, en]，用两个单位右端项处理
 % 边界条件，每个 alpha 的代价只会更高。
 
 %% ---------- 1) 合成反问题（结构同 factorsOneWindow.m） ----------
@@ -42,7 +42,7 @@ kPoles=numel(masses);
 t=(M2min:dM2:M2max).';  m2=numel(t);
 w=trapwUniform(t);
 s=(S_H:ds:Lam).';       nHats=numel(s);
-H=massPlusStiffness(s);                % 帽基质量+刚度（师兄文件中的 M+M1）
+H=massPlusStiffness(s);                % 帽基质量+刚度（原来的代码中的 M+M1）
 boundary=[0;0];                        % 两端谱值固定为 0（示例取 0）
 
 Poles=(exp(-masses.^2./t.')./t.').';    % 极点列，与 solveInverse.m 相同
@@ -66,7 +66,7 @@ n=size(A,2); p=size(B,1);
 assert(m2>=n && n>p, 'compact M3 GSVD 需要 m>=n>p');
 assert(numel(free)==n && ni==p, '自由未知量结构不符');
 
-%% ---------- 2) 基线：师兄的逐 alpha 正规方程解法 ----------
+%% ---------- 2) 基线：原来的代码的逐 alpha 正规方程解法 ----------
 alpha=logspace(-16,-2,1001); nAlpha=numel(alpha);
 A2=A'*A; D2=A'*b0;                     % 正规方程（条件数平方）
 H2=zeros(n); H2(kPoles+1:end,kPoles+1:end)=Hii;  % 与 ||B*x||^2 完全相同的罚项
@@ -175,7 +175,7 @@ end
 
 function H=massPlusStiffness(s)
 %MASSPLUSSTIFFNESS 帽基质量 Gram（M）+ 一阶差分刚度（M1），H=M+M1。
-% 构造与师兄 Pion_LCDA_test.m 中的 M、M1、H1 相同（h 为帽基步长）。
+% 构造与原来的代码中的 M、M1、H1 相同（h 为帽基步长）。
 h=s(2)-s(1); nH=numel(s);
 M=zeros(nH); M1=zeros(nH);
 M(1,1)=4; M(end,end)=4; M(1,2)=2; M(end,end-1)=2; M(2,1)=2; M(end-1,end)=2;

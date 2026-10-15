@@ -9,7 +9,7 @@
 - ``inverse_common/factors.py``         端点消去 + Cholesky 罚项装配（第 1 节同结构）
 - ``inverse_common/reconstruction.py``  全 alpha 网格的广义滤波（第 3 节核心公式）
 
-被替换的原始解法见下方引用（师兄 Pion_LCDA_test.m 的解方程部分）。
+被替换的原始解法见下方引用（原来的代码，解方程部分原文）。
 
 运行：python3 gsvd_example.py
 依赖：NumPy。GSVD 需要 LP64 LAPACKE_dggsvd3（自动探测系统 / NumPy / SciPy 的
@@ -18,7 +18,7 @@ gsvd 接口，所以正式实现与本示例都直接用 ctypes 调 LAPACKE。
 """
 
 # ---------------------------------------------------------------- 原始解法（引用）
-# 师兄 Pion_LCDA_test.m 的解方程部分（原文，逐个 alpha 重新求解正规方程）：
+# 原来的代码的解方程部分（原文，逐个 alpha 重新求解正规方程）：
 #   for i=1:n+mm
 #       for j=1:n+mm
 #          A2(i,j)=trapz(y,Aphi_New(:,i).*Aphi_New(:,j));
@@ -201,7 +201,7 @@ def trapezoid_weights(t):
 def mass_plus_stiffness(s):
     """帽基质量 Gram（M）+ 一阶差分刚度（M1），H = M + M1。
 
-    构造与师兄 Pion_LCDA_test.m 中的 M、M1、H1 相同（h 为帽基步长）。
+    构造与原来的代码中的 M、M1、H1 相同（h 为帽基步长）。
     """
     h = s[1] - s[0]
     n_hats = s.size
@@ -264,7 +264,7 @@ def main():
     k_poles = n - p
     alpha = np.logspace(-16.0, -2.0, 1001)
 
-    # ---- 2) 基线：师兄的逐 alpha 正规方程解法 ------------------------------
+    # ---- 2) 基线：原来的代码的逐 alpha 正规方程解法 ------------------------------
     a2 = a_mat.T @ a_mat
     d2 = a_mat.T @ b0
     h2 = np.zeros((n, n))

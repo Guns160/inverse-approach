@@ -53,6 +53,9 @@ def save_result(result, output_root, *, prefix, include_peak_covered=False):
             source=d["source"], fallback=d["fallback"], on_boundary=d["on_boundary"])
         if include_peak_covered:
             channel_summary["small_alpha_peak_covered"] = d["small_alpha_peak_covered"]
+        if "f_raw" in item:
+            channel_summary["f_raw_GeV"] = item["f_raw"].tolist()
+            channel_summary["anomaly_shift_GeV"] = item["anomaly_shift_GeV"].tolist()
         summary["channels"][channel] = channel_summary
     summary = json_finite(summary)
     with (dest / "summary.json").open("x", encoding="utf-8") as stream:

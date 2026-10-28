@@ -52,6 +52,7 @@ class MatlabParityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="charmonium-matlab-") as temporary:
             saved = Path(temporary) / "parity.mat"
             command = "".join(f"addpath({matlab_literal(path)});" for path in paths)
+            command += "test_pp_anomaly; "
             command += (
                 f"j=solve_jpsi_vector(5,20,20,'DS',0.1,'Mu',2,'RGLoops',{selected_loops},'CheckSolution',true); "
                 f"a=solve_eta_c_axial_vector(5,20,20,'DS',0.1,'Mu',2,'RGLoops',{selected_loops},'CheckSolution',true); "
@@ -123,6 +124,13 @@ class MatlabParityTest(unittest.TestCase):
                 np.testing.assert_allclose(
                     observed.f, reference["f"], rtol=3e-5, atol=3e-5, equal_nan=True
                 )
+                if package == "eta_c_pseudoscalar":
+                    np.testing.assert_allclose(observed.f_raw, reference["f_raw"],
+                                               rtol=3e-5, atol=3e-5, equal_nan=True)
+                    np.testing.assert_allclose(observed.anomaly_shift_GeV,
+                                               reference["anomaly_shift_GeV"], rtol=1e-14)
+                    np.testing.assert_array_equal(got.metadata.anomaly.applied,
+                                                  want["metadata"]["anomaly"]["applied"])
                 np.testing.assert_allclose(
                     observed.residual, reference["residual"], rtol=3e-5, atol=3e-5
                 )

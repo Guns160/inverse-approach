@@ -7,7 +7,7 @@
 - `std`：有效输出样本标准差，分母为有效样本数减一。
 - 中央 68.268949% 覆盖区间：分位点 0.158655254 与 0.841344746。
 
-`q16` 与 `q84` 是师兄摘要中使用的近似分位标签；精确 68% 端点另存在 `central_68_interval`。高斯分布下，中央区间对应均值 ± 标准差；偏斜、多峰或重尾分布中二者通常不同。中心参数处的模型结果单独列出，它不一定等于样本均值或中位数，也不一定落在区间内。
+`q16` 与 `q84` 是原参考摘要中使用的近似分位标签；精确 68% 端点另存在 `central_68_interval`。高斯分布下，中央区间对应均值 ± 标准差；偏斜、多峰或重尾分布中二者通常不同。中心参数处的模型结果单独列出，它不一定等于样本均值或中位数，也不一定落在区间内。
 
 ## 系统系综的包络
 
@@ -18,7 +18,7 @@ envelope_minus = central - min(central, samples)
 envelope_plus  = max(central, samples) - central
 ```
 
-这对应师兄程序的平台散点包络。它通常比 68% 区间更保守，也不等于标准差。系统包络与统计 `std` 不是同类量，不能平方相加，本工具不生成总不确定度。
+这对应原参考程序的平台散点包络。它通常比 68% 区间更保守，也不等于标准差。系统包络与统计 `std` 不是同类量，不能平方相加，本工具不生成总不确定度。
 
 ## 两个系综
 
@@ -39,4 +39,4 @@ envelope_plus  = max(central, samples) - central
 
 ## 方法依据
 
-JCGM 101:2008（BIPM，《Evaluation of measurement data — Supplement 1: Propagation of distributions using a Monte Carlo method》）5.1、5.3、7.3–7.7 区分输入联合分布、输出标准差及覆盖区间。本 Skill 采用师兄程序的两系综应用方式：统计误差看输出分布，系统误差看平台散点包络；不把规范例子作为物理参数或平台默认值。
+JCGM 101:2008（BIPM，《Evaluation of measurement data — Supplement 1: Propagation of distributions using a Monte Carlo method》）5.1、5.3、7.3–7.7 区分输入联合分布、输出标准差及覆盖区间。本 Skill 采用原参考程序的两系综应用方式：统计误差看输出分布，系统误差看平台散点包络；不把规范例子作为物理参数或平台默认值。

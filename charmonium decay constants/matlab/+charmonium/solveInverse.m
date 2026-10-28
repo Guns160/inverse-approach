@@ -1,6 +1,8 @@
 function out = solveInverse(M2min,M2max,Lambda,phys,varargin)
 %SOLVEINVERSE Shared compact-GSVD decay-constant inversion for three channels.
 o=charmonium.commonOptions(varargin{:});
+assert(strcmp(phys.kind,'pp')||~o.AnomalySpecified, ...
+    'Anomaly1S and Anomaly2S apply only to the pseudoscalar solver');
 lo=double(M2min); hi=double(M2max); lam=double(Lambda);
 assert(all(isfinite([lo,hi,lam]))&&lo>0&&hi>lo&&lam>0, ...
     'Require positive M2min<M2max and Lambda');
@@ -59,7 +61,8 @@ for j=1:numel(names)
     penalty=sqrt(max(cont'*H*cont,0));
     positive=residues>0; f=nan(p,1); f(positive)=sqrt(residues(positive));
     if strcmp(phys.kind,'pp')
-        f(positive)=2*mc.*sqrt(residues(positive))./(masses(positive).^2);
+        [f,fRaw,anomalyShift,anomaly]=charmonium.ppDecayConstants( ...
+            residues,masses,mc,o.Anomaly1S,o.Anomaly2S);
     end
     diagnostics=sel;
     diagnostics.grid=alpha; diagnostics.on_boundary=any(sel.index==[1,numel(alpha)]);
@@ -76,10 +79,8 @@ for j=1:numel(names)
         rhoAll=[repmat(boundary(1),1,numel(alpha)); ...
             shiftedAll(p+1:end,:)-fac.q; ...
             repmat(boundary(2),1,numel(alpha))];
-        fAll=nan(p,numel(alpha)); positiveAll=residuesAll>0;
-        massGrid=masses*ones(1,numel(alpha));
-        fAll(positiveAll)=2*mc.*sqrt(residuesAll(positiveAll))./ ...
-            massGrid(positiveAll).^2;
+        [fAll,fRawAll]=charmonium.ppDecayConstants( ...
+            residuesAll,masses,mc,o.Anomaly1S,o.Anomaly2S);
         dcont=dshifted(p+1:end,:);
         interiorW=charmonium.trapweights(sHat); interiorW=interiorW(2:end-1);
         qoc=interiorW.'*dcont.^2;
@@ -101,6 +102,8 @@ for j=1:numel(names)
     if strcmp(phys.kind,'pp')
         chan.alpha=alpha; chan.residues_all=residuesAll;
         chan.rho_all=rhoAll; chan.f_all=fAll; chan.qoc=qoc;
+        chan.f_raw=fRaw; chan.f_raw_all=fRawAll;
+        chan.anomaly_shift_GeV=anomalyShift;
     end
     chan.(phys.f_field)=f(1);
     betaAll=[fac.beta_c;fac.beta_n]; y=[coef;un];
@@ -143,4 +146,8 @@ out.metadata=struct('schema',phys.schema,'M2_min',lo,'M2_max',hi, ...
     'rg',rg,'gsvd',struct('source','MATLAB built-in gsvd','economy_qr',true, ...
     'convention',"A=U*C*X', B=V*S*X'"));
 out.M2=t; out.weights=weights; out.OPE=ope;
+if strcmp(phys.kind,'pp')
+    out.metadata.anomaly=anomaly;
+    out.metadata.schema='eta_c-pp-matlab-v2';
+end
 end

@@ -37,6 +37,27 @@ All three solvers run only `2pole` and return the result in `out.two_pole`. `Cha
 
 Common options are `Channel`, `DS`, `RGLoops`, `Mu`, `RGInputs`, `Alpha`, and `CheckSolution`. `RGLoops` accepts 1 through 4 and defaults to 4; the main solvers call the independent `charmonium.runDec` program with that order. Other defaults are `DS=0.1`, `Mu=2`, and `CheckSolution=false`. Setting `CheckSolution=true` adds an independent augmented least-squares regression and direct gradient check. `RGInputs` is the complete coupled struct with fields `mbar_c`, `alpha_mz`, `mz`, and `mb`; the charm mass and its anchor scale both use `mbar_c`.
 
+## Pseudoscalar axial anomaly
+
+Only the PP entry accepts `Anomaly1S` and `Anomaly2S` (GeV^3). Defaults are
+`Anomaly1S=-0.079` and `Anomaly2S=[]`. An empty input leaves that state
+density-only; zero explicitly supplies a zero matrix element.
+
+```matlab
+p = solve_eta_c_pseudoscalar(5,20,20); % ground-state anomaly included
+raw = solve_eta_c_pseudoscalar(5,20,20,"Anomaly1S",[]);
+```
+
+`two_pole.f`, `f_all` and `f_eta_c` include supplied `a_i/m_i^2` terms.
+`f_raw` and `f_raw_all` preserve `2*mc*sqrt(R_i)/m_i^2`, and
+`anomaly_shift_GeV` records the shifts. `metadata.anomaly` records the inputs
+and which states remain density-only. Do not add the correction again when
+plotting `f`. The OPE and spectral inversion do not depend on anomaly inputs.
+
+Run `test_pp_anomaly` after adding this directory to verify the Ward identity,
+optional inputs, and unchanged spectral inversion. The Python/MATLAB parity
+check also runs this test.
+
 Run the self-contained numerical smoke test with:
 
 ```matlab

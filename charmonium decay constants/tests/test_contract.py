@@ -39,7 +39,8 @@ class InverseProblemContract(unittest.TestCase):
                 positive = ch["residues"] > 0
                 factor = (2 * out["metadata"]["mc"] / ch["masses"] ** 2
                           if name == "eta_c_pseudoscalar" else np.ones_like(ch["masses"]))
-                np.testing.assert_allclose(ch["f"][positive],
+                density_f = ch["f_raw"] if name == "eta_c_pseudoscalar" else ch["f"]
+                np.testing.assert_allclose(density_f[positive],
                                            factor[positive] * np.sqrt(ch["residues"][positive]),
                                            rtol=2e-14)
                 self.assertTrue(np.isnan(ch["f"][~positive]).all())

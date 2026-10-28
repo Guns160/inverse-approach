@@ -92,6 +92,8 @@ class RGIntegrationTests(unittest.TestCase):
         mc = result["metadata"]["mc"]
         positive = channel["residues"] > 0
         expected = 2.0 * mc * np.sqrt(channel["residues"][positive]) / channel["masses"][positive] ** 2
+        np.testing.assert_allclose(channel["f_raw"][positive], expected, rtol=1e-14)
+        expected += np.array([-0.079, 0.0])[positive] / channel["masses"][positive] ** 2
         np.testing.assert_allclose(channel["f"][positive], expected, rtol=1e-14)
 
     def test_pp_selector_receives_generalized_singular_values(self):

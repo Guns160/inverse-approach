@@ -27,12 +27,19 @@ Historical results and parameter scans are not bundled with the source packages.
 
 [`improvement/`](improvement/) contains a minimal self-contained Python + MATLAB example of the solver improvement: one economy-QR + compact GSVD replaces the original per-alpha normal-equation solves, and the whole alpha grid is produced by vectorized generalized filters. The MATLAB example quotes the original per-alpha solve loop it replaces.
 
-## Reusable analysis Skill
+## Uncertainty analysis notes
 
-[`uncertainty-analysis/SKILL.md`](uncertainty-analysis/SKILL.md) describes a reusable separated-ensemble uncertainty workflow for AI agents. Statistical inputs and systematic platform/window parameters are sampled in separate Monte Carlo runs and reported separately; the tool does not combine them into a total uncertainty. It does not prescribe the model's kinematic variables, condensates or number of observables. The Skill is stored in this repository and is not installed into a local agent directory.
+[`uncertainty-analysis/`](uncertainty-analysis/) records the uncertainty-analysis method for this class of inverse problems. Errors are separated by where they come from — outside the method versus inside it — and each kind has its own note:
 
-### Uncertainty-analysis TODO
+| Note | Error kind | Class |
+|---|---|---|
+| [`input-sampling.md`](uncertainty-analysis/input-sampling.md) | Gaussian sampling of physical inputs | Input-induced |
+| [`ope-truncation.md`](uncertainty-analysis/ope-truncation.md) | Truncation of the OPE | Input-induced |
+| [`mu-scale.md`](uncertainty-analysis/mu-scale.md) | Renormalization scale (fixed, not an error) | Input-induced |
+| [`platform-parameters.md`](uncertainty-analysis/platform-parameters.md) | Platform parameters | Method-intrinsic |
+| [`alpha-regularization.md`](uncertainty-analysis/alpha-regularization.md) | Regularization approximation | Method-intrinsic |
+| [`reference-comparison.md`](uncertainty-analysis/reference-comparison.md) | Input-list differences from the reference study | — |
 
-- Add an explicit regularization-parameter (`alpha`) ensemble or diagnostic; the current reference workflow keeps `alpha` fixed during both Monte Carlo ensembles.
-- Add running-scale (`mu`) variation; the current charmonium workflow fixes `mu = 2.0` and does not sample it.
-- Track further uncertainty-method changes in future pull requests rather than silently changing completed ensembles or reports.
+Each note gives the procedure, the checks and the reporting format. The implementation stays in each project, since the operator, grid and output quantities differ. [`README.md`](uncertainty-analysis/README.md) is the index.
+
+The notes also record the distribution assigned to each source: Gaussian for inputs with a measured central value and uncertainty, uniform over the plateau for platform parameters, and no sampling at all for the renormalization scale, the OPE truncation and the regularization approximation. That assignment does not depend on whether the sampling is per-source or joint.

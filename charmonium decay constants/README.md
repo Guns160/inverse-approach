@@ -6,7 +6,7 @@ Three channel packages use common numerical infrastructure and a shared MSbar QC
 |---|---|---|---|
 | `Jpsi_vector` | `2pole` | psi(2S) | `f = sqrt(R)` |
 | `eta_c_axial_vector` | `2pole` | chi_c1 | `f = sqrt(R)` |
-| `eta_c_pseudoscalar` | `2pole` | eta_c(2S) | `f = 2*mc(mu)*sqrt(R)/M^2` |
+| `eta_c_pseudoscalar` | `2pole` | eta_c(2S) | `f = (2*mc(mu)*sqrt(R)+a_i)/m_i^2` when a_i is supplied |
 
 Nonpositive pole residues produce `NaN` decay constants. Neither pole residues nor the reconstructed continuum are constrained to be positive.
 
@@ -36,6 +36,41 @@ print(channel["f"], channel["alpha_star"])
 ```
 
 The API returns data without writing files. CLI runs create unique directories containing `result.npz` and `summary.json`; `--output` selects the output root. NPZ values do not require pickle. JSON replaces nonfinite values with `null`.
+
+## Pseudoscalar axial-anomaly conversion
+
+The PP solver now includes the axial Ward conversion in the main result:
+`f_i = f_raw_i + a_i/m_i^2`, with `f_raw_i = 2*mc(mu)*sqrt(R_i)/m_i^2`.
+Here `m_i` is the hadron mass, not the Borel parameter. The default ground-state
+matrix element is `a_1=-0.079 GeV^3` from Qin et al., Phys. Rev. D 97, 096002
+(2018), Eq. (22). Its shift is approximately -8.872 MeV. No 2S matrix element
+is assumed: by default the second entry remains density-only, as recorded in
+`metadata.anomaly.applied` and `metadata.anomaly.f_definition`.
+
+```python
+from eta_c_pseudoscalar import solve
+out = solve(5, 20, 20)  # a_1=-0.079; a_2 omitted
+raw = solve(5, 20, 20, anomaly_1s=None)  # omit both anomaly inputs
+custom = solve(5, 20, 20, anomaly_1s=-0.079, anomaly_2s=0.02)
+```
+
+The custom 2S value above only illustrates the API; it is not a physical input
+recommended by this project. Supply matrix elements in GeV^3 with the same
+state phase convention as `h_i=+sqrt(R_i)`. `None` means missing, while zero
+explicitly supplies a zero matrix element.
+
+```sh
+python -m eta_c_pseudoscalar 5 20 20 --anomaly-1s none
+python -m eta_c_pseudoscalar 5 20 20 --anomaly-1s -0.079 --anomaly-2s 0.02
+```
+
+PP output schema v3 uses `f`, `f_all`, and `f_eta_c` for values with supplied
+anomaly terms included. `f_raw` and `f_raw_all` retain the density contribution;
+`anomaly_shift_GeV` gives the additive shift per state. Summary JSON contains
+both `f_GeV` and `f_raw_GeV`. Nonpositive residues remain undefined. The anomaly
+conversion leaves the OPE, residues, spectrum, and alpha selection unchanged.
+Plots reading `f` must not add the same correction again; old postprocessors
+that perform the correction themselves should read `f_raw` instead.
 
 ## Running scale
 

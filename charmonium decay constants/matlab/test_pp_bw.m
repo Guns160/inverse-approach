@@ -24,7 +24,7 @@ for j=1:3
     assert(model.rest_components_GeV.gamma_gamma==photons(j));
     assertClose(model.rest_width,gg(j)+photons(j),2e-15,2e-17);
     assert(strcmp(model.rest_width_definition,'constant gg + gamma_gamma'));
-    assert(strcmp(model.partial_width_source,'EPJC 75 (2015) 313, Table 3, model b'));
+    assert(strcmp(model.partial_width_source,'EPJC 75 (2015) 196, Table 3, model b'));
     assert(ismember('https://doi.org/10.1140/epjc/s10052-015-3418-5',model.sources));
     assert(ismember('https://pdg.lbl.gov/2026/',model.sources));
 end

@@ -246,7 +246,7 @@ class RunningWidth:
                     pole_partial_widths_GeV=self.pole_partial_widths.tolist(),
                     radius_GeV_inverse=self.radius, DstarD1_L=self.dstar_d1_l,
                     quadrature_nodes=self.quadrature_nodes, area_renormalized=False,
-                    partial_width_source="EPJC 75 (2015) 313, Table 3, model b",
+                    partial_width_source="EPJC 75 (2015) 196, Table 3, model b",
                     width_policy="combined open-charm and constant residual inputs",
                     daughter_width_policy="constant neutral width also used for charged partner",
                     charge_policy="equal charge-group average; no extra conjugate factor",

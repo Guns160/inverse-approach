@@ -45,6 +45,16 @@ def save_result(result, output_root, *, prefix, include_peak_covered=False):
         "channels": {},
     }
     for channel, item in result["channels"].items():
+        if "alpha_star" not in item:
+            summary["channels"][channel] = dict(
+                alpha_selection=None, n_alpha=len(item["alpha"]),
+                alpha_range=[float(item["alpha"][0]), float(item["alpha"][-1])],
+                all_positive_count=int(np.count_nonzero(item["positive_all"])),
+                validation_pass_count=int(np.count_nonzero(item["validation_pass_all"])),
+                weighted_residual_range=[float(np.min(item["weighted_residual_all"])),
+                                         float(np.max(item["weighted_residual_all"]))],
+                anomaly_shift_GeV=item["anomaly_shift_GeV"].tolist())
+            continue
         d = item["alpha_diagnostics"]
         channel_summary = dict(
             alpha=item["alpha_star"], residues=item["residues"].tolist(),

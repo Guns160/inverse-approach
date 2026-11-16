@@ -1,5 +1,7 @@
 # Inverse approach
 
+[中文](README.zh.md) | **English**
+
 Research code for extracting charmonium pole residues and decay constants from Borel sum rules.
 
 The programs are in [`charmonium decay constants/`](charmonium%20decay%20constants/):

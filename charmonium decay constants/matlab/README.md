@@ -1,5 +1,7 @@
 # MATLAB implementation
 
+[中文](README.zh.md) | **English**
+
 The shared numerical core is the `+charmonium` package in this directory. It implements the physical-s hat basis, H1 penalty, channel-specific OPE formulas, economy-QR compact GSVD, reconstruction, and Raus 2024 selector. MATLAB's built-in `gsvd` is required; no toolbox or external GSVD package is needed.
 
 Add one public entry directory to the path before calling its solver. Each entry also adds this shared `matlab` directory:

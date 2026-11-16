@@ -1,5 +1,7 @@
 # improvement：解方程环节的改进示例（compact GSVD 滤波 vs 逐 alpha 正规方程）
 
+**中文** | [English](README.en.md)
+
 这个文件夹只包含**解方程环节**的最小可运行示例，用来说明本仓库对原始解法的改进。两个示例（Python + MATLAB）构造**同一个**合成反问题，输出可逐项对照。
 
 ## 原方法与改进方法

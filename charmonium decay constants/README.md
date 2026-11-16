@@ -1,5 +1,7 @@
 # Charmonium decay constants
 
+[中文](README.zh.md) | **English**
+
 Three channel packages use common numerical infrastructure and a shared MSbar QCD running prescription. Inputs and outputs use GeV and powers of GeV.
 
 | Package | Pole model names | Second pole | Residue conversion |

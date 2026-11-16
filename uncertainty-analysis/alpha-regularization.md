@@ -1,5 +1,7 @@
 # 正则化近似误差 $\alpha$
 
+**中文** | [English](alpha-regularization.en.md)
+
 有限 $\alpha$ 使正则化算子偏离精确逆算子。这一节说明这个偏差怎么估计。
 
 这是方法内在误差中除平台参数以外的另一项。平台参数见 [platform-parameters.md](platform-parameters.md)。

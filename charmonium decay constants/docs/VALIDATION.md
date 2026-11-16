@@ -1,5 +1,7 @@
 # Validation record: 2026-10-14
 
+[中文](VALIDATION.zh.md) | **English**
+
 These checks validate implementations and selected numerical contracts. They do not establish new physical extraction windows or replace the existing error-budget analysis.
 
 ## Environment

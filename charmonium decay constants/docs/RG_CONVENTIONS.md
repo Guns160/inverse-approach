@@ -1,5 +1,7 @@
 # Shared four-loop QCD RG conventions
 
+[中文](RG_CONVENTIONS.zh.md) | **English**
+
 ## Source and scope
 
 Source: K. G. Chetyrkin, J. H. Kuhn and M. Steinhauser, **RunDec: a
